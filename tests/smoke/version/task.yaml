@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Canonical Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+summary: Smoke test for openshell snap installation and version check
+details: |
+    This test verifies that the openshell snap is properly installed
+    and that the openshell command is available and functional.
+
+execute: |
+    # Check openshell binary exists
+    which openshell | MATCH /snap/bin/openshell
+
+    # Test openshell version command works
+    openshell --version | MATCH "openshell [0-9]+.[0-9]+.[0-9]+(-[a-z0-9]+)?"
+
+    # Test openshell help works
+    openshell --help | MATCH "OpenShell CLI tool"

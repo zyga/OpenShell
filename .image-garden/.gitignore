@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Canonical Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+*.img
+*.iso
+*.lock
+*.log
+*.meta-data
+*.qcow2
+*.run
+*.user-data
