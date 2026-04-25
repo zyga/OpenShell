@@ -62,6 +62,19 @@ struct SshSessionConfig {
     token: String,
 }
 
+fn proxy_command_executable() -> Result<String> {
+    // In snap installs, OpenSSH runs ProxyCommand via /bin/sh. Using the
+    // launched command name keeps snap runtime env wiring intact.
+    if std::env::var("SNAP").is_ok() {
+        return Ok("openshell".to_string());
+    }
+
+    let exe = std::env::current_exe()
+        .into_diagnostic()
+        .wrap_err("failed to resolve OpenShell executable")?;
+    Ok(exe.to_string_lossy().into_owned())
+}
+
 async fn ssh_session_config(
     server: &str,
     name: &str,
@@ -90,10 +103,7 @@ async fn ssh_session_config(
     validate_ssh_session_response(&session)
         .map_err(|err| miette::miette!("gateway returned invalid SSH session response: {err}"))?;
 
-    let exe = std::env::current_exe()
-        .into_diagnostic()
-        .wrap_err("failed to resolve OpenShell executable")?;
-    let exe_command = exe.to_string_lossy().into_owned();
+    let exe_command = proxy_command_executable()?;
 
     // When using Cloudflare bearer auth, the SSH CONNECT must go through the
     // external tunnel endpoint (the cluster URL), not the server's internal
@@ -898,8 +908,8 @@ fn host_alias(name: &str) -> String {
 }
 
 fn render_ssh_config(gateway: &str, name: &str) -> String {
-    let exe = std::env::current_exe().expect("failed to resolve OpenShell executable");
-    let exe = shell_escape(&exe.to_string_lossy());
+    let exe = proxy_command_executable().unwrap_or_else(|_| "openshell".to_string());
+    let exe = shell_escape(&exe);
 
     let proxy_cmd = format!(
         "{exe} ssh-proxy --gateway-name {} --name {}",
