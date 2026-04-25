@@ -1,0 +1,298 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+name: tasteful crafts
+
+on:
+  workflow_call:
+    inputs:
+      cache-host-snaps:
+        type: boolean
+        description: "Whether to cache host snaps (snapd, core22, core24) during installation"
+        required: false
+        default: true
+      cache-pristine-images:
+        type: boolean
+        description: Use GitHub cache to store pristine images (recommended)
+        required: false
+        default: true
+      cache-prepared-images:
+        type: boolean
+        description: Use GitHub cache to store project-specific images
+        required: false
+        default: false
+      snapd-channel:
+        type: string
+        description: "Snap store channel for snapd snap (e.g., latest/stable, latest/edge)"
+        required: false
+        default: latest/stable
+      core22-channel:
+        type: string
+        description: "Snap store channel for core22 snap (e.g., latest/stable, latest/edge)"
+        required: false
+        default: latest/stable
+      core24-channel:
+        type: string
+        description: "Snap store channel for core24 snap (e.g., latest/stable, latest/edge)"
+        required: false
+        default: latest/stable
+      lxd-channel:
+        type: string
+        description: "Snap store channel for LXD snap (e.g., latest/stable, latest/edge)"
+        required: false
+        default: latest/stable
+      snapcraft-channel:
+        type: string
+        description: "Snap store channel for Snapcraft snap (e.g., latest/stable, latest/edge)"
+        required: false
+        default: latest/stable
+      image-garden-channel:
+        type: string
+        description: "Snap store channel for image-garden snap (e.g., latest/stable, latest/edge)"
+        required: false
+        default: latest/stable
+      image-garden-components:
+        type: string
+        description: "Comma-separated list of image-garden components to install"
+        required: false
+        default: ""
+      spread-systems:
+        type: string
+        description: "JSON array of spread systems to test, or empty to auto-discover via spread -list"
+        required: false
+        default: ""
+      spread-tasks:
+        type: string
+        description: "The name of the spread tasks to run (e.g., tests/smoke)"
+        required: false
+        default: ""
+      spread-variant:
+        type: string
+        description: "Variant of spread to use (empty string or plus)"
+        required: false
+        default: ""
+      spread-live:
+        type: boolean
+        description: "Enable live mode for spread (only available when spread-variant is plus)"
+        required: false
+        default: false
+      pack-runs-on-amd64:
+        type: string
+        description: Runner label for the amd64 snap build
+        required: false
+        default: ubuntu-24.04
+        # TODO: Switch to linux-amd64-cpu8 once those runners land upstream.
+        # Other Rust/build CI jobs (rust-native-build, docker-build, branch-checks,
+        # release-dev, release-tag, ci-image) already use linux-amd64-cpu8 and
+        # linux-arm64-cpu8, which provide significantly faster build times.
+      pack-runs-on-arm64:
+        type: string
+        description: Runner label for the arm64 snap build
+        required: false
+        default: ubuntu-24.04-arm
+        # TODO: Switch to linux-arm64-cpu8 once those runners land upstream.
+      spread-runs-on:
+        type: string
+        description: Runner label for amd64 spread jobs
+        required: false
+        default: ubuntu-24.04
+      spread-runs-on-arm64:
+        type: string
+        description: Runner label for arm64 spread jobs (unused — no nested virtualization on GitHub hosted arm64 runners)
+        required: false
+        default: ubuntu-24.04-arm
+      snapstore-channel:
+        type: string
+        description: "Snap store channel to publish to (e.g., latest/edge)"
+        required: true
+      github-environment:
+        type: string
+        description: "Deployment environment (defaults to latest/candidate for tags, latest/edge otherwise)"
+        required: false
+        default: ""
+      github-deployment:
+        type: boolean
+        description: "Whether upload jobs should be marked as deployments"
+        required: false
+        default: true
+      skip-spread-tests:
+        type: boolean
+        description: "Skip integration tests (spread) and proceed directly to publishing. Requires manual approval."
+        required: false
+        default: false
+    secrets:
+      publish-credentials:
+        description: "GitHub secret containing Snap Store credentials for publishing"
+        required: true
+
+jobs:
+  # TODO: When spread.yaml is added to the repo, this gate enables
+  # integration testing of the snap before it can be published. The
+  # snapcraft-upload job checks this condition so only a valid spread
+  # test tree will allow promotion.
+  discover-spread-systems:
+    name: discover spread systems
+    runs-on: ${{ inputs.spread-runs-on }}
+    outputs:
+      spread-systems: ${{ steps.prepare.outputs.spread-systems }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Check for spread.yaml
+        id: check
+        shell: bash
+        run: |
+          if [ -f spread.yaml ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "spread.yaml found — integration tests enabled"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "spread.yaml not found — skipping integration tests"
+          fi
+
+      - name: Install snapd snap
+        uses: ./.github/actions/install-cached-snap
+        with:
+          snap-name: snapd
+          channel: ${{ inputs.snapd-channel }}
+          enable-cache: ${{ inputs.cache-host-snaps }}
+        if: ${{ steps.check.outputs.found == 'true' }}
+
+      - name: Install core24 snap
+        uses: ./.github/actions/install-cached-snap
+        with:
+          snap-name: core24
+          channel: ${{ inputs.core24-channel }}
+          enable-cache: ${{ inputs.cache-host-snaps }}
+        if: ${{ steps.check.outputs.found == 'true' }}
+
+      - name: Install image-garden snap
+        uses: ./.github/actions/install-cached-snap
+        with:
+          snap-name: image-garden
+          channel: ${{ inputs.image-garden-channel }}
+          components: ${{ inputs.image-garden-components }}
+          enable-cache: ${{ inputs.cache-host-snaps }}
+        if: ${{ steps.check.outputs.found == 'true' }}
+
+      - name: Use spread from image-garden snap
+        run: sudo snap alias image-garden.spread spread
+        if: ${{ steps.check.outputs.found == 'true' }}
+
+      - name: Discover spread systems
+        id: discover
+        shell: bash
+        env:
+          INPUT_SPREAD_SYSTEMS: ${{ inputs.spread-systems }}
+        if: ${{ steps.check.outputs.found == 'true' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INPUT_SPREAD_SYSTEMS" ]; then
+            spread_systems="$INPUT_SPREAD_SYSTEMS"
+          else
+            spread_systems="$(
+              spread -list | cut -d : -f 2 | sort -u |
+                python3 -c 'import json, sys; print(json.dumps([line.strip() for line in sys.stdin if line.strip()]))'
+            )"
+          fi
+
+          if [ "$spread_systems" = "[]" ]; then
+            echo "::error::No spread systems found in spread -list output"
+            exit 1
+          fi
+
+          echo "spread-systems=$spread_systems" >> "$GITHUB_OUTPUT"
+          echo "Spread systems: $spread_systems"
+
+      - name: Set spread-systems output (skip or discover)
+        id: prepare
+        run: |
+          if [ "${{ steps.check.outputs.found }}" != "true" ]; then
+            # Use a sentinel value instead of "[]". An empty JSON array in a
+            # matrix produces zero entries, and GitHub Actions evaluates `if`
+            # conditions before matrix expansion — the job gets stuck instead
+            # of being skipped.  "__skip__" guarantees exactly one matrix
+            # entry so the `if` can correctly suppress the job.
+            echo 'spread-systems=["__skip__"]' >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ steps.discover.outputs.spread-systems }}" ]; then
+            echo "spread-systems=${{ steps.discover.outputs.spread-systems }}" >> "$GITHUB_OUTPUT"
+          else
+            echo 'spread-systems=["__skip__"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  snapcraft-pack-amd64:
+    name: snapcraft (amd64)
+    uses: ./.github/workflows/snapcraft-pack.yml
+    with:
+      job-arch: amd64
+      cache-host-snaps: ${{ inputs.cache-host-snaps }}
+      snapd-channel: ${{ inputs.snapd-channel }}
+      core22-channel: ${{ inputs.core22-channel }}
+      core24-channel: ${{ inputs.core24-channel }}
+      lxd-channel: ${{ inputs.lxd-channel }}
+      snapcraft-channel: ${{ inputs.snapcraft-channel }}
+      runs-on: ${{ inputs.pack-runs-on-amd64 }}
+
+  snapcraft-pack-arm64:
+    name: snapcraft (arm64)
+    uses: ./.github/workflows/snapcraft-pack.yml
+    with:
+      job-arch: arm64
+      cache-host-snaps: ${{ inputs.cache-host-snaps }}
+      snapd-channel: ${{ inputs.snapd-channel }}
+      core22-channel: ${{ inputs.core22-channel }}
+      core24-channel: ${{ inputs.core24-channel }}
+      lxd-channel: ${{ inputs.lxd-channel }}
+      snapcraft-channel: ${{ inputs.snapcraft-channel }}
+      runs-on: ${{ inputs.pack-runs-on-arm64 }}
+
+  spread-amd64:
+    name: spread (amd64) - ${{ matrix.spread-system }}
+    if: ${{ !inputs.skip-spread-tests && needs.discover-spread-systems.outputs.spread-systems != '"__skip__"' }}
+    needs: [discover-spread-systems, snapcraft-pack-amd64]
+    strategy:
+      matrix:
+        spread-system: ${{ fromJSON(needs.discover-spread-systems.outputs.spread-systems) }}
+    uses: ./.github/workflows/spread.yml
+    with:
+      job-arch: amd64
+      cache-host-snaps: ${{ inputs.cache-host-snaps }}
+      cache-pristine-images: ${{ inputs.cache-pristine-images }}
+      cache-prepared-images: ${{ inputs.cache-prepared-images }}
+      snapd-channel: ${{ inputs.snapd-channel }}
+      core24-channel: ${{ inputs.core24-channel }}
+      image-garden-channel: ${{ inputs.image-garden-channel }}
+      image-garden-components: ${{ inputs.image-garden-components }}
+      runs-on: ${{ inputs.spread-runs-on }}
+      spread-system: ${{ matrix.spread-system }}
+      spread-arch: x86_64
+      spread-tasks: ${{ inputs.spread-tasks }}
+      spread-variant: ${{ inputs.spread-variant }}
+      spread-live: ${{ fromJSON(inputs.spread-live) }}
+      snap-artifact-name: snap-${{ needs.snapcraft-pack-amd64.outputs.arch }}
+      snap-filename: ${{ needs.snapcraft-pack-amd64.outputs.snap-filename }}
+
+  # Create GitHub environments that match the deployment target names used
+  # here (latest/edge for branch builds, latest/candidate for tag builds by
+  # default), then add an environment secret named
+  # SNAPCRAFT_STORE_CREDENTIALS. Export the secret value locally with:
+  # snapcraft export-login --snaps=<snap-name> --channels=<publish-channel> \
+  #   --acls=package_upload,package_release <token-name>
+  snapcraft-upload:
+    name: snapcraft upload
+    # Upload built snaps only after smoke testing the amd64 build first.
+    # When spread tests are skipped, proceed directly after packing is complete.
+    if: ${{ always() && (inputs.skip-spread-tests || needs.spread-amd64.result == 'success' || needs.spread-amd64.result == 'skipped') }}
+    needs: [snapcraft-pack-amd64, snapcraft-pack-arm64, spread-amd64]
+    uses: ./.github/workflows/snapcraft-upload.yml
+    with:
+      artifact-pattern: snap-*
+      cache-host-snaps: ${{ inputs.cache-host-snaps }}
+      snapd-channel: ${{ inputs.snapd-channel }}
+      core24-channel: ${{ inputs.core24-channel }}
+      snapcraft-channel: ${{ inputs.snapcraft-channel }}
+      snapstore-channel: ${{ inputs.github-environment || (github.ref_type == 'tag' && 'latest/candidate' || 'latest/edge') }}
+      github-environment: ${{ inputs.github-environment || (github.ref_type == 'tag' && 'latest/candidate' || 'latest/edge') }}
+      github-deployment: ${{ inputs.github-deployment }}
+    secrets:
+      publish-credentials: ${{ secrets.publish-credentials }}
