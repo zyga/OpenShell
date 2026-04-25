@@ -1,0 +1,204 @@
+name: Build and publish OpenShell snap
+
+on:
+  push:
+    branches: [ snapify ]
+    tags: [ "v*" ]
+
+env:
+  SNAP_NAME: openshell
+  SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+
+jobs:
+  build-rockcraft-rootfs:
+    name: "Build VM rootfs (${{ matrix.arch }})"
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Install build dependencies
+        run: |
+          sudo apt install -y umoci jq zstd fakeroot
+          sudo snap install --classic rockcraft
+          sudo lxd init --auto
+          sudo iptables -P FORWARD ACCEPT
+          sudo chmod 666 /var/snap/lxd/common/lxd/unix.socket
+      - name: Build VM rootfs with rockcraft
+        run: ./tasks/scripts/vm/build-rockcraft-rootfs.sh
+      - name: Upload rockcraft logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rockcraft-rootfs-logs-${{ matrix.arch }}
+          path: /home/runner/.local/state/rockcraft/log/rockcraft-*.log
+          retention-days: 7
+      - name: Upload rootfs artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: rockcraft-rootfs-${{ matrix.arch }}
+          path: ./target/vm-runtime-compressed/rootfs.tar.zst
+          retention-days: 7
+
+  build-core-rock:
+    name: "Build OpenShell core (${{ matrix.arch }})"
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Install build dependencies
+        run: |
+          sudo apt install -y umoci jq zstd fakeroot
+          sudo snap install --classic rockcraft
+          sudo lxd init --auto
+          sudo iptables -P FORWARD ACCEPT
+          sudo chmod 666 /var/snap/lxd/common/lxd/unix.socket
+      - name: Build OpenShell core rock
+        run: ./tasks/scripts/build-rock.sh
+      - name: Upload rockcraft logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rockcraft-core-logs-${{ matrix.arch }}
+          path: /home/runner/.local/state/rockcraft/log/rockcraft-*.log
+          retention-days: 7
+      - name: Upload core rock artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: openshell-core-rock-${{ matrix.arch }}
+          # The script renames the resulting rock
+          path: ./snap/local-images/openshell-core.rock
+          retention-days: 7
+
+  build-snap:
+    name: "Build OpenShell snap (${{ matrix.arch }})"
+    runs-on: ${{ matrix.runner }}
+    needs: [ build-rockcraft-rootfs, build-core-rock ]
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Install build dependencies
+        run: |
+          sudo apt install -y umoci jq zstd fakeroot
+          sudo snap install --classic snapcraft
+          sudo lxd init --auto
+          sudo iptables -P FORWARD ACCEPT
+          sudo chmod 666 /var/snap/lxd/common/lxd/unix.socket
+      - name: Download rootfs artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: rockcraft-rootfs-${{ matrix.arch }}
+          path: ./target/vm-runtime-compressed/
+      - name: Download core rock artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: openshell-core-rock-${{ matrix.arch }}
+          path: ./snap/local-images/
+      - name: Build openshell snap
+        run: ./tasks/scripts/build-snap.sh
+      - name: Upload snap artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: openshell-snap-${{ matrix.arch }}
+          path: openshell_*.snap
+          retention-days: 7
+      - name: Upload snapcraft logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: snapcraft-logs-${{ matrix.arch }}
+          path: /home/runner/.local/state/snapcraft/log/snapcraft-*.log
+          retention-days: 7
+
+  upload-to-edge:
+    name: "Upload snap to latest/edge"
+    runs-on: ubuntu-24.04
+    needs: build-snap
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    environment:
+      # This environment is used to group the promote step in the UI and to set up a manual approval gate before promoting to edge.
+      # The secret has the permission to actually publish to the latest/edge channel.
+      name: snapstore-edge
+      deployment: false
+    steps:
+      - name: Install Snapcraft
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        run: sudo snap install snapcraft --classic
+      - name: Download snap artifacts (x86_64)
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: openshell-snap-x86_64
+          path: ./snaps/
+      - name: Download snap artifacts (aarch64)
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: openshell-snap-aarch64
+          path: ./snaps/
+      - name: Release to latest/edge
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        run: |
+          for snap in ./snaps/openshell_*.snap; do
+            echo "Publishing $snap to latest/edge"
+            snapcraft upload "$snap" --release latest/edge
+          done
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+
+  upload-to-candidate:
+    name: "Upload snap to latest/candidate"
+    runs-on: ubuntu-24.04
+    needs: build-snap
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    environment:
+      # This environment is used to group the promote step in the UI and to set up a manual approval gate before promoting to candidate.
+      # The secret has the permission to actually publish to the latest/candidate channel.
+      name: snapstore-candidate
+      deployment: false
+    steps:
+      - name: Install Snapcraft
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        run: sudo snap install snapcraft --classic
+      - name: Download snap artifacts (x86_64)
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: openshell-snap-x86_64
+          path: ./snaps/
+      - name: Download snap artifacts (aarch64)
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: openshell-snap-aarch64
+          path: ./snaps/
+      - name: Release to latest/candidate
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
+        run: |
+          for snap in ./snaps/openshell_*.snap; do
+            echo "Publishing $snap to latest/candidate"
+            snapcraft upload "$snap" --release latest/candidate
+          done
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+
