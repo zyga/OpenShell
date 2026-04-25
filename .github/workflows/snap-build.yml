@@ -1,0 +1,37 @@
+name: Smoke test build using new scripts
+
+on:
+  push:
+    branches: [ snapify ]
+
+jobs:
+  build-snap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt install -y umoci jq zstd fakeroot
+          sudo snap install --classic snapcraft
+          sudo snap install --classic rockcraft
+          sudo lxd init --auto
+          sudo iptables -P FORWARD ACCEPT
+          sudo chmod 666 /var/snap/lxd/common/lxd/unix.socket
+      - name: Build VM rootfs with rockcraft
+        run: ./tasks/scripts/vm/build-rockcraft-rootfs.sh
+      - name: Upload rockcraft logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rockcraft-logs
+          path: /home/runner/.local/state/rockcraft/log/rockcraft-*.log
+      - name: Build openshell core rock
+        run: ./tasks/scripts/build-rock.sh
+      - name: Build openshell snap
+        run: ./tasks/scripts/build-snap.sh
+      - name: Upload snap artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openshell-snap
+          path: openshell_*.snap
