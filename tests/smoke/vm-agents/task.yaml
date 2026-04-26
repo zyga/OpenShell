@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Canonical Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+summary: Verify agent binaries are present and executable in the VM rootfs
+details: |
+    Checks that the claude and copilot binaries are installed at the expected
+    paths inside the VM rootfs and have executable permissions.
+
+execute: |
+    snap run openshell sandbox create -- sh -c 'test -x "$(which claude)"'
+    snap run openshell sandbox create -- sh -c 'test -x "$(which copilot)"'
+
+restore: |
+    snap run openshell sandbox delete --all
