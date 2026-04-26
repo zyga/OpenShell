@@ -7,6 +7,15 @@ details: |
     and that the openshell command is available and functional.
 
 prepare: |
+    # Connect kvm plug for sandbox runtime
+    sudo snap connect openshell:kvm
+    # Set driver to vm (k8s support is WIP)
+    snap set openshell driver=vm
+    # Wait for gateway socket to be ready
+    for _ in $(seq 1 30); do
+        [ -S /var/snap/openshell/common/run/gateway.sock ] && break
+        sleep 1
+    done
     snap run openshell sandbox list | MATCH "No sandboxes found."
 
 execute: |
@@ -14,5 +23,11 @@ execute: |
     snap run openshell sandbox list | MATCH ".*Ready"
 
 restore: |
+    # Wait for gateway socket before attempting cleanup
+    for _ in $(seq 1 10); do
+        [ -S /var/snap/openshell/common/run/gateway.sock ] && break
+        sleep 1
+    done
+    # Delete sandboxes, ignore errors if gateway is unavailable
     snap run openshell sandbox delete --all | MATCH ".*Deleted.*"
     snap run openshell sandbox list | MATCH "No sandboxes found."

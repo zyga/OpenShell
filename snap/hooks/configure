@@ -29,17 +29,18 @@ if [ -n "$SOCKET_MODE" ]; then
 	fi
 fi
 
-# Write environment file for the daemon wrapper
-mkdir -p "$SNAP_DATA"
-cat <<EOF >"$SNAP_DATA/config.env"
-DRIVER="${DRIVER}"
-REGISTRY="${REGISTRY}"
-SOCKET_GROUP="${SOCKET_GROUP}"
-SOCKET_MODE="${SOCKET_MODE}"
-EOF
-
-# Apply mode immediately to the current socket if it exists.
+# Apply socket mode immediately to the current socket if it exists.
 SOCKET_PATH="$SNAP_COMMON/run/gateway.sock"
 if [ -S "$SOCKET_PATH" ]; then
 	chmod "$SOCKET_MODE" "$SOCKET_PATH"
+fi
+
+# Restart gateway when the effective driver changes so runtime picks it up immediately.
+RUNTIME_DRIVER="$DRIVER"
+if [ "$RUNTIME_DRIVER" = "k8s" ]; then
+	RUNTIME_DRIVER="kubernetes"
+fi
+
+if ! pgrep -fa openshell-gateway | grep -q -- "--drivers $RUNTIME_DRIVER"; then
+	snapctl restart openshell.gateway
 fi

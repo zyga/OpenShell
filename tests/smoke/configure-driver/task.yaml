@@ -4,24 +4,42 @@
 summary: Test snap configure hook driver property
 details: |
     This test verifies that the snap configure hook correctly
-    validates and writes the driver property to config.env.
+    validates and stores the driver property in snap state.
 
 execute: |
     # Test driver set to k8s
     snap set openshell driver=k8s
-    cat /var/snap/openshell/current/config.env | MATCH 'DRIVER="k8s"'
+    snap get openshell driver | MATCH "^k8s$"
 
     # Test driver set to vm
     snap set openshell driver=vm
-    cat /var/snap/openshell/current/config.env | MATCH 'DRIVER="vm"'
+    snap get openshell driver | MATCH "^vm$"
+    for _ in $(seq 1 20); do
+        pgrep -fa openshell-gateway | MATCH "openshell-gateway.*--drivers vm" && break
+        sleep 1
+    done
+    pgrep -fa openshell-gateway | MATCH "openshell-gateway.*--drivers vm"
 
-    # Test default driver is vm when unset
-    snap unset openshell driver
-    cat /var/snap/openshell/current/config.env | MATCH 'DRIVER="vm"'
-
-    # Test invalid driver is rejected and does not change config
+    # Test invalid driver is rejected and does not change snap state
     snap set openshell driver=podman 2>&1 | MATCH "Error: Invalid driver"
-    cat /var/snap/openshell/current/config.env | MATCH 'DRIVER="vm"'
+    snap get openshell driver | MATCH "^vm$"
+    pgrep -fa openshell-gateway | MATCH "openshell-gateway.*--drivers vm"
+
+    # Verify that k8s driver is translated to kubernetes at runtime.
+    # snap set openshell driver=k8s
+    # for _ in $(seq 1 20); do
+    #     pgrep -fa openshell-gateway | MATCH "openshell-gateway.*--drivers kubernetes" && break
+    #     sleep 1
+    # done
+    # pgrep -fa openshell-gateway | MATCH "openshell-gateway.*--drivers kubernetes"
+
+    # Unset driver and verify runtime falls back to vm default.
+    snap unset openshell driver
+    for _ in $(seq 1 20); do
+        pgrep -fa openshell-gateway | MATCH "openshell-gateway.*--drivers vm" && break
+        sleep 1
+    done
+    pgrep -fa openshell-gateway | MATCH "openshell-gateway.*--drivers vm"
 
 restore: |
     snap unset openshell driver

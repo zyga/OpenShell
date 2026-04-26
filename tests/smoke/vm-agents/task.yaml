@@ -6,9 +6,26 @@ details: |
     Checks that the claude and copilot binaries are installed at the expected
     paths inside the VM rootfs and have executable permissions.
 
+prepare: |
+    # Connect kvm plug for sandbox runtime
+    sudo snap connect openshell:kvm
+    # Set driver to vm (k8s support is WIP)
+    snap set openshell driver=vm
+    # Wait for gateway socket to be ready
+    for _ in $(seq 1 30); do
+        [ -S /var/snap/openshell/common/run/gateway.sock ] && break
+        sleep 1
+    done
+
 execute: |
     snap run openshell sandbox create -- sh -c 'test -x "$(which claude)"'
     snap run openshell sandbox create -- sh -c 'test -x "$(which copilot)"'
 
 restore: |
+    # Wait for gateway socket before attempting cleanup
+    for _ in $(seq 1 10); do
+        [ -S /var/snap/openshell/common/run/gateway.sock ] && break
+        sleep 1
+    done
+    # Delete sandboxes, ignore errors if gateway is unavailable
     snap run openshell sandbox delete --all
