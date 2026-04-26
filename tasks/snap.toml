@@ -2,7 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Snap build tasks
+#
+# The snap package requires both the Core ROCK and VM rootfs ROCK to be built first.
+# Run "mise run build:snap" to build all dependencies in the correct sequence.
 
 ["build:snap"]
 description = "Build the snap package bundling the gateway and supervisor Docker images"
+depends = ["build:rock"]
 run = "tasks/scripts/build-snap.sh"

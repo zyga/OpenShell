@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Rock (OCI image archive) build tasks
+#
+# Both build:rockcraft:rootfs and build:rock create rockcraft.yaml in the project root
+# and must run sequentially to avoid conflicts.
+#
+# Workflow:
+#   mise run build:rockcraft:rootfs   # Build VM rootfs ROCK
+#   mise run build:rock               # Build Core ROCK (depends on rootfs)
+#   mise run build:snap               # Build snap (depends on core rock)
+
+["build:rockcraft:rootfs"]
+description = "Build the VM rootfs ROCK using Rockcraft"
+run = "tasks/scripts/vm/build-rockcraft-rootfs.sh"
+
+["build:rock"]
+description = "Build the Core ROCK (Gateway + Supervisor)"
+depends = ["build:rockcraft:rootfs"]
+run = "tasks/scripts/build-rock.sh"
