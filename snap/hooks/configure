@@ -16,6 +16,11 @@ if [ -z "$DRIVER" ]; then
     DRIVER="vm"
 fi
 
+if [ "$DRIVER" != "vm" ] && [ "$DRIVER" != "k8s" ]; then
+    echo "Warning: Invalid driver '$DRIVER'; defaulting to 'vm'. Allowed values: vm, k8s" >&2
+    DRIVER="vm"
+fi
+
 # Validate socket mode if set
 if [ -n "$SOCKET_MODE" ]; then
     if ! [[ "$SOCKET_MODE" =~ ^06[0-7]{2}$ ]]; then
@@ -32,3 +37,9 @@ REGISTRY="${REGISTRY}"
 SOCKET_GROUP="${SOCKET_GROUP}"
 SOCKET_MODE="${SOCKET_MODE}"
 EOF
+
+# Apply mode immediately to the current socket if it exists.
+SOCKET_PATH="$SNAP_COMMON/run/gateway.sock"
+if [ -S "$SOCKET_PATH" ]; then
+    chmod "$SOCKET_MODE" "$SOCKET_PATH"
+fi

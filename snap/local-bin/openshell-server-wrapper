@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Source persisted snap configuration when available.
+if [ -f "$SNAP_DATA/config.env" ]; then
+    # shellcheck disable=SC1090
+    source "$SNAP_DATA/config.env"
+fi
 
 
 # Ensure UDS dir exists
