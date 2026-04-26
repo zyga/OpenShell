@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: Canonical Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+summary: Test snap configure hook socket-mode property
+details: |
+    This test verifies that the snap configure hook correctly
+    sets the socket-mode property and writes it to config.env.
+    It also verifies that the socket file receives the expected permissions.
+
+execute: |
+    SOCKET_PATH=/var/snap/openshell/common/run/gateway.sock
+
+    # Ensure the gateway socket exists before checking permissions.
+    for _ in $(seq 1 20); do
+        [ -S "$SOCKET_PATH" ] && break
+        sleep 1
+    done
+    [ -S "$SOCKET_PATH" ]
+
+    # Test socket-mode set to a valid mode (0660)
+    snap set openshell socket-mode=0660
+    cat /var/snap/openshell/current/config.env | MATCH 'SOCKET_MODE="0660"'
+    stat -c "%a" "$SOCKET_PATH" | MATCH "^660$"
+
+    # Test socket-mode set to another valid mode (0600)
+    snap set openshell socket-mode=0600
+    cat /var/snap/openshell/current/config.env | MATCH 'SOCKET_MODE="0600"'
+    stat -c "%a" "$SOCKET_PATH" | MATCH "^600$"
+
+    # Test socket-mode set to world-accessible (0666)
+    snap set openshell socket-mode=0666
+    cat /var/snap/openshell/current/config.env | MATCH 'SOCKET_MODE="0666"'
+    stat -c "%a" "$SOCKET_PATH" | MATCH "^666$"
+
+    # Test default socket-mode is 0666 when unset
+    snap unset openshell socket-mode
+    cat /var/snap/openshell/current/config.env | MATCH 'SOCKET_MODE="0666"'
+    stat -c "%a" "$SOCKET_PATH" | MATCH "^666$"
+
+    # Test invalid socket-mode (must start with 06)
+    snap set openshell socket-mode=0777 2>&1 | MATCH "Error: Invalid socket-mode"
+    cat /var/snap/openshell/current/config.env | MATCH 'SOCKET_MODE="0666"'
+
+    # Test invalid socket-mode (must be 4-digit octal)
+    snap set openshell socket-mode=666 2>&1 | MATCH "Error: Invalid socket-mode"
+
+restore: |
+    snap unset openshell socket-mode

@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Canonical Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+summary: Test snap configure hook registry property
+details: |
+    This test verifies that the snap configure hook correctly
+    sets the registry property and writes it to config.env.
+
+execute: |
+    # Test registry set to a value
+    snap set openshell registry=docker.io
+    cat /var/snap/openshell/current/config.env | MATCH 'REGISTRY="docker.io"'
+
+    # Test registry set to another value
+    snap set openshell registry=ghcr.io
+    cat /var/snap/openshell/current/config.env | MATCH 'REGISTRY="ghcr.io"'
+
+    # Test registry can be empty
+    snap unset openshell registry
+    cat /var/snap/openshell/current/config.env | MATCH 'REGISTRY=""'
+
+restore: |
+    snap unset openshell registry
