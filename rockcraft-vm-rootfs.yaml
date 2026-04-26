@@ -50,3 +50,33 @@ parts:
       mkdir -p $CRAFT_PART_INSTALL/usr/share/udhcpc $CRAFT_PART_INSTALL/sbin
       ln -sf /bin/busybox $CRAFT_PART_INSTALL/sbin/udhcpc
       install -m 755 openshell-vm-sandbox-init.sh $CRAFT_PART_INSTALL/openshell-vm-sandbox-init.sh
+
+  claude:
+    plugin: nil
+    build-packages:
+      - curl
+      - jq
+    override-build: |
+      platform="linux-${CRAFT_ARCH_BUILD_FOR/amd64/x64}"
+      version=$(curl -fsSL https://downloads.claude.ai/claude-code-releases/latest)
+      checksum=$(curl -fsSL "https://downloads.claude.ai/claude-code-releases/${version}/manifest.json" \
+        | jq -r ".platforms[\"${platform}\"].checksum")
+      curl -fsSL -o claude "https://downloads.claude.ai/claude-code-releases/${version}/${platform}/claude"
+      echo "${checksum}  claude" | sha256sum -c -
+      install -D -m 0755 claude "$CRAFT_PART_INSTALL/usr/local/bin/claude"
+
+  copilot:
+    plugin: nil
+    build-packages:
+      - curl
+      - jq
+    override-build: |
+      arch="${CRAFT_ARCH_BUILD_FOR/amd64/x64}"
+      tag=$(curl -fsSL https://api.github.com/repos/github/copilot-cli/releases/latest \
+        | jq -r '.tag_name')
+      checksum=$(curl -fsSL "https://github.com/github/copilot-cli/releases/download/${tag}/SHA256SUMS.txt" \
+        | awk "/copilot-linux-${arch}.tar.gz/ {print \$1}")
+      curl -fsSL -o copilot.tar.gz "https://github.com/github/copilot-cli/releases/download/${tag}/copilot-linux-${arch}.tar.gz"
+      echo "${checksum}  copilot.tar.gz" | sha256sum -c -
+      tar xf copilot.tar.gz
+      install -D -m 0755 copilot "$CRAFT_PART_INSTALL/usr/local/bin/copilot"
