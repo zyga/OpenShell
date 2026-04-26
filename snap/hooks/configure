@@ -17,8 +17,8 @@ if [ -z "$DRIVER" ]; then
 fi
 
 if [ "$DRIVER" != "vm" ] && [ "$DRIVER" != "k8s" ]; then
-	echo "Warning: Invalid driver '$DRIVER'; defaulting to 'vm'. Allowed values: vm, k8s" >&2
-	DRIVER="vm"
+	echo "Error: Invalid driver '$DRIVER'. Allowed values: vm, k8s" >&2
+	exit 1
 fi
 
 # Validate socket mode if set
