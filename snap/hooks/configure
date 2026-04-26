@@ -1,0 +1,45 @@
+#!/bin/bash
+set -e
+
+DRIVER=$(snapctl get driver)
+REGISTRY=$(snapctl get registry)
+SOCKET_GROUP=$(snapctl get socket-group)
+SOCKET_MODE=$(snapctl get socket-mode)
+
+# Preserve historical behavior: default to a world-accessible UDS mode unless overridden.
+if [ -z "$SOCKET_MODE" ]; then
+	SOCKET_MODE="0666"
+fi
+
+# Default to vm if driver is not set
+if [ -z "$DRIVER" ]; then
+	DRIVER="vm"
+fi
+
+if [ "$DRIVER" != "vm" ] && [ "$DRIVER" != "k8s" ]; then
+	echo "Error: Invalid driver '$DRIVER'. Allowed values: vm, k8s" >&2
+	exit 1
+fi
+
+# Validate socket mode if set
+if [ -n "$SOCKET_MODE" ]; then
+	if ! [[ "$SOCKET_MODE" =~ ^06[0-7]{2}$ ]]; then
+		echo "Error: Invalid socket-mode: must be a 4-digit octal starting with 06 (e.g. 0660)" >&2
+		exit 1
+	fi
+fi
+
+# Write environment file for the daemon wrapper
+mkdir -p "$SNAP_DATA"
+cat <<EOF >"$SNAP_DATA/config.env"
+DRIVER="${DRIVER}"
+REGISTRY="${REGISTRY}"
+SOCKET_GROUP="${SOCKET_GROUP}"
+SOCKET_MODE="${SOCKET_MODE}"
+EOF
+
+# Apply mode immediately to the current socket if it exists.
+SOCKET_PATH="$SNAP_COMMON/run/gateway.sock"
+if [ -S "$SOCKET_PATH" ]; then
+	chmod "$SOCKET_MODE" "$SOCKET_PATH"
+fi
