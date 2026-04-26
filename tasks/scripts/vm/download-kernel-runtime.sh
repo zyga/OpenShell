@@ -67,11 +67,10 @@ echo "    Artifact:   ${TARBALL_NAME}"
 echo "    Output:     ${OUTPUT_DIR}"
 echo ""
 
-# ── Check for gh CLI ────────────────────────────────────────────────────
+# ── Check for download tool ─────────────────────────────────────────────
 
-if ! command -v gh &>/dev/null; then
-    echo "Error: GitHub CLI (gh) is required." >&2
-    echo "  Install: https://cli.github.com/" >&2
+if ! command -v curl &>/dev/null && ! command -v wget &>/dev/null; then
+    echo "Error: curl or wget is required to download VM runtime artifacts." >&2
     exit 1
 fi
 
@@ -81,18 +80,20 @@ DOWNLOAD_DIR="${ROOT}/target/vm-runtime-download"
 mkdir -p "$DOWNLOAD_DIR" "$OUTPUT_DIR"
 
 echo "==> Downloading ${TARBALL_NAME} from ${RELEASE_TAG}..."
-gh release download "${RELEASE_TAG}" \
-    --repo "${REPO}" \
-    --pattern "${TARBALL_NAME}" \
-    --dir "${DOWNLOAD_DIR}" \
-    --clobber
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${TARBALL_NAME}"
+if command -v curl &>/dev/null; then
+    curl -fL --retry 3 --retry-all-errors \
+        -o "${DOWNLOAD_DIR}/${TARBALL_NAME}" \
+        "${DOWNLOAD_URL}"
+else
+    wget -q -O "${DOWNLOAD_DIR}/${TARBALL_NAME}" "${DOWNLOAD_URL}"
+fi
 
 if [ ! -f "${DOWNLOAD_DIR}/${TARBALL_NAME}" ]; then
     echo "Error: Download failed — ${TARBALL_NAME} not found." >&2
     echo "" >&2
     echo "The vm-dev release may not have kernel runtime artifacts yet." >&2
-    echo "Run the 'Release VM Kernel' workflow first:" >&2
-    echo "  gh workflow run release-vm-kernel.yml" >&2
+    echo "Run the 'Release VM Kernel' workflow first." >&2
     exit 1
 fi
 
