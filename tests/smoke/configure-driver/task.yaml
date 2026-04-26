@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: Canonical Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+summary: Test snap configure hook driver property
+details: |
+    This test verifies that the snap configure hook correctly
+    validates and writes the driver property to config.env.
+
+execute: |
+    # Test driver set to k8s
+    snap set openshell driver=k8s
+    cat /var/snap/openshell/current/config.env | MATCH 'DRIVER="k8s"'
+
+    # Test driver set to vm
+    snap set openshell driver=vm
+    cat /var/snap/openshell/current/config.env | MATCH 'DRIVER="vm"'
+
+    # Test default driver is vm when unset
+    snap unset openshell driver
+    cat /var/snap/openshell/current/config.env | MATCH 'DRIVER="vm"'
+
+    # Test invalid driver is rejected and does not change config
+    snap set openshell driver=podman 2>&1 | MATCH "Error: Invalid driver"
+    cat /var/snap/openshell/current/config.env | MATCH 'DRIVER="vm"'
+
+restore: |
+    snap unset openshell driver

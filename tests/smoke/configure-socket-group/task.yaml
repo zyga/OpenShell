@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Canonical Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+summary: Test snap configure hook socket-group property
+details: |
+    This test verifies that the snap configure hook correctly
+    sets the socket-group property and writes it to config.env.
+
+execute: |
+    # Test socket-group set to a value
+    snap set openshell socket-group=snap_daemon
+    cat /var/snap/openshell/current/config.env | MATCH 'SOCKET_GROUP="snap_daemon"'
+
+    # Test socket-group set to another value
+    snap set openshell socket-group=root
+    cat /var/snap/openshell/current/config.env | MATCH 'SOCKET_GROUP="root"'
+
+    # Test socket-group can be empty
+    snap unset openshell socket-group
+    cat /var/snap/openshell/current/config.env | MATCH 'SOCKET_GROUP=""'
+
+restore: |
+    snap unset openshell socket-group
