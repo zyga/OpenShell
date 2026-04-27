@@ -3,7 +3,7 @@
 This branch is a PoC of a simpler, more secure and easily managed OpenShell
 install, update and distribution experience.
 
-The goal is this UX is to make it trivial for any user to get OpenShell and
+The goal of this UX is to make it trivial for any user to get OpenShell and
 start working with it locally using VM sandboxes.
 
 If they want, they can also install a local K8s and registry, deploy the
@@ -16,7 +16,7 @@ The snap can use Podman locally too.
 
 ```
 sudo snap install openshell
-openshell create sandbox
+openshell sandbox create
 ```
 
 That's it. Nothing else is needed if your machine supports KVM. You are now
@@ -42,7 +42,7 @@ For example, this command will deploy to a local K8s cluster on Ubuntu:
 sudo cat /etc/kubernetes/admin.conf | openshell cluster init --gateway local-k8s --registry localhost:5000 --kubeconfig -
 ```
 
-This will verify both the registy and the Kubernetes credential, push images to
+This will verify both the registry and the Kubernetes credential, push images to
 the registry, deploy a daemonset that provides a custom AppArmor profile for
 the supervisor, and run the gateway service. It will then register this client
 so that it can create sandboxes on that Kubernetes.
