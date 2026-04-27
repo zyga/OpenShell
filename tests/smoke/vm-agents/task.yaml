@@ -11,12 +11,12 @@ prepare: |
     snap run openshell sandbox list
 
 execute: |
-    snap run openshell sandbox create -- sh -c 'test -x "$(which claude)"'
+    snap run openshell sandbox -vvv create -- sh -c 'test -x "$(which claude)"'
 
     # Creating a few sandboxes rapidly may sometimes fail on sqlite lock.
     sleep 3
 
-    snap run openshell sandbox create -- sh -c 'test -x "$(which copilot)"'
+    snap run openshell sandbox -vvv create -- sh -c 'test -x "$(which copilot)"'
 
 restore: |
     snap run openshell sandbox delete --all
