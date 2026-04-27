@@ -39,7 +39,7 @@ parts:
     override-pull: |
       craftctl default
       # Set version to git describe or short commit hash
-      craftctl set version=$(git branch --show-current | tr '/' '-')-g$(git rev-parse --short HEAD)
+      craftctl set version=b$(git branch --show-current | tr '/' '-')-g$(git rev-parse --short HEAD)
 
     override-build: |
       craftctl default
