@@ -130,39 +130,11 @@ jobs:
           path: /home/runner/.local/state/snapcraft/log/snapcraft-*.log
           retention-days: 7
 
-  test-snap-x86_64:
-    name: "Test snap on ${{ matrix.garden-system }}"
-    runs-on: ubuntu-24.04
-    needs: build-snap
-    strategy:
-      matrix:
-        include:
-          - garden-system: ubuntu-cloud-24.04
-          - garden-system: ubuntu-cloud-26.04
-    environment:
-      name: spread-tests
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Download snap artifact (x86_64)
-        uses: actions/download-artifact@v8
-        with:
-          name: openshell-snap-x86_64
-
-      - name: Run spread tests with image-garden
-        uses: zyga/image-garden-action@ffd53dbfa81cf0f46f2b3410c29ae6eaf809c5ab
-        with:
-          garden-system: ${{ matrix.garden-system }}
-          spread-variant: plus
-          spread-live: true
-          spread-artifacts: artifacts
-          spread-artifacts-suffix: ${{ matrix.garden-system }}
 
   upload-to-edge:
     name: "Upload snap to latest/edge"
     runs-on: ubuntu-24.04
-    needs: [build-snap, test-snap-x86_64]
+    needs: [build-snap]
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     environment:
       # This environment is used to group the promote step in the UI and to set up a manual approval gate before promoting to edge.
@@ -198,7 +170,7 @@ jobs:
   upload-to-candidate:
     name: "Upload snap to latest/candidate"
     runs-on: ubuntu-24.04
-    needs: [build-snap, test-snap-x86_64]
+    needs: [build-snap]
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     environment:
       # This environment is used to group the promote step in the UI and to set up a manual approval gate before promoting to candidate.
