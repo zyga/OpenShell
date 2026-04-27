@@ -156,6 +156,8 @@ jobs:
           garden-system: ${{ matrix.garden-system }}
           spread-variant: plus
           spread-live: true
+          spread-artifacts: artifacts
+          spread-artifacts-suffix: ${{ matrix.garden-system }}
 
   upload-to-edge:
     name: "Upload snap to latest/edge"

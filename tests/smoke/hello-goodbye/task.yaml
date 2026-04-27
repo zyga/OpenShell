@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Canonical Ltd.
+# SPDX-License-Identifier: Apache-2.0
+
+summary: Smoke test creating two sandboxes in quick succession
+details: |
+    This test verifies that two sandboxes can be created in quick succession.
+
+artifacts:
+    - hello-goodbye-debug.log
+
+prepare: |
+    snap run openshell sandbox list | MATCH "No sandboxes found."
+    snap services openshell.gateway | MATCH "active"
+
+execute: |
+    snap run openshell sandbox -vvv create -- echo "Hello, OpenShell!" | MATCH "Hello, OpenShell!"
+    snap run openshell sandbox -vvv create -- echo "Goodbye, OpenShell!" | MATCH "Goodbye, OpenShell!"
+    snap run openshell sandbox list | MATCH ".*Ready"
+
+restore: |
+    snap run openshell sandbox delete --all | MATCH ".*Deleted.*"
+    snap run openshell sandbox list | MATCH "No sandboxes found."
+
+debug: |
+    (
+        echo "=== openshell sandbox list ==="
+        snap run openshell sandbox list
+
+        echo "=== openshell sandbox logs ==="
+        snap run openshell sandbox logs
+
+        echo "=== gateway journald logs ==="
+        journalctl -u snap.openshell.gateway -n 200 --no-pager
+    ) 2>&1 | tee hello-goodbye-debug.log
