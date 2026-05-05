@@ -25,32 +25,37 @@ pub(crate) fn diagnose_missing_kvm_with_cpuinfo(arch: &str, cpuinfo: &str) -> St
         }
         "riscv64" => {
             // Look for the 'h' extension in the ISA string
-            let has_h_ext = cpuinfo.lines()
+            let has_h_ext = cpuinfo
+                .lines()
                 .filter(|line| line.starts_with("isa"))
                 .any(|line| line.contains("_h") || line.contains(" h "));
-            
+
             if !has_h_ext {
                 return "Your machine does not support hardware virtualization. Missing the 'h' (Hypervisor) extension in the RISC-V ISA string.".to_string();
             }
         }
         "s390x" => {
             if !cpuinfo.contains("sie") {
-               return "Your machine does not support hardware virtualization. Missing the 'sie' (System z Virtualization) feature.".to_string();
+                return "Your machine does not support hardware virtualization. Missing the 'sie' (System z Virtualization) feature.".to_string();
             }
         }
         "powerpc" | "ppc64" | "ppc64le" => {
             // PowerPC KVM requires PowerNV or specific LPAR configurations
             // We check for the PowerNV platform in /proc/cpuinfo.
-            let is_powernv = cpuinfo.lines().any(|line| line.starts_with("platform") && line.contains("PowerNV"));
+            let is_powernv = cpuinfo
+                .lines()
+                .any(|line| line.starts_with("platform") && line.contains("PowerNV"));
             if !is_powernv {
                 return "Your machine does not support hardware virtualization. Your platform may not provide KVM hypervisor capabilities (requires PowerNV or a compatible bare-metal environment).".to_string();
             }
         }
         _ => {
-            return format!("Hardware virtualization requirements are not explicitly checked for architecture '{}'.", arch);
+            return format!(
+                "Hardware virtualization requirements are not explicitly checked for architecture '{arch}'."
+            );
         }
     }
-    
+
     // Fallback if CPU capabilities exist but /dev/kvm is still missing
     "Hardware virtualization is supported, but /dev/kvm is missing. Ensure the KVM kernel module is loaded ('modprobe kvm') or the snap interface is connected:\n\n              sudo snap connect openshell:kvm".to_string()
 }
