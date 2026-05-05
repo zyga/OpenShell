@@ -323,16 +323,17 @@ pub async fn run_server(
                 .status();
         }
         if let Some(mode_str) = &config.unix_socket_mode
-            && let Ok(mode) = u32::from_str_radix(mode_str, 8) {
-                if let Err(e) = std::fs::set_permissions(
-                    uds_path,
-                    std::os::unix::fs::PermissionsExt::from_mode(mode),
-                ) {
-                    tracing::error!(error = %e, "Failed to set socket permissions");
-                } else {
-                    tracing::info!(mode = mode, "Socket permissions set successfully");
-                }
+            && let Ok(mode) = u32::from_str_radix(mode_str, 8)
+        {
+            if let Err(e) = std::fs::set_permissions(
+                uds_path,
+                std::os::unix::fs::PermissionsExt::from_mode(mode),
+            ) {
+                tracing::error!(error = %e, "Failed to set socket permissions");
+            } else {
+                tracing::info!(mode = mode, "Socket permissions set successfully");
             }
+        }
 
         info!(path = %uds_path, "UDS Server listening");
         let service = service.clone();

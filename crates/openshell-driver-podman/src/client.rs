@@ -576,9 +576,10 @@ impl PodmanClient {
         for line in output.lines() {
             if let Ok(json) = serde_json::from_str::<Value>(line) {
                 if let Some(stream) = json.get("stream").and_then(|s| s.as_str())
-                    && let Some(name) = stream.strip_prefix("Loaded image: ") {
-                        loaded_name = Some(name.trim().to_string());
-                    }
+                    && let Some(name) = stream.strip_prefix("Loaded image: ")
+                {
+                    loaded_name = Some(name.trim().to_string());
+                }
             } else if let Some(name) = line.strip_prefix("Loaded image: ") {
                 loaded_name = Some(name.trim().to_string());
             }
