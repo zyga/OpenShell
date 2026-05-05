@@ -197,26 +197,25 @@ impl VmDriverConfig {
     }
 }
 
-fn chown_recursive(dir: &Path, uid: u32, gid: u32) -> std::io::Result<()> {
-    let nix_uid = Uid::from_raw(uid);
-    let nix_gid = Gid::from_raw(gid);
+fn chown_recursive(dir: &Path, uid: u32, gid: u32) {
+    let owner = Uid::from_raw(uid);
+    let group = Gid::from_raw(gid);
 
     let mut stack = vec![dir.to_path_buf()];
     while let Some(path) = stack.pop() {
-        let _ = nix::unistd::chown(&path, Some(nix_uid), Some(nix_gid));
-        if let Ok(entries) = std::fs::read_dir(&path) {
+        let _ = nix::unistd::chown(&path, Some(owner), Some(group));
+        if let Ok(entries) = fs::read_dir(&path) {
             for entry in entries.flatten() {
                 let entry_path = entry.path();
-                let _ = nix::unistd::chown(&entry_path, Some(nix_uid), Some(nix_gid));
-                if let Ok(file_type) = entry.file_type() {
-                    if file_type.is_dir() {
-                        stack.push(entry_path);
-                    }
+                let _ = nix::unistd::chown(&entry_path, Some(owner), Some(group));
+                if let Ok(file_type) = entry.file_type()
+                    && file_type.is_dir()
+                {
+                    stack.push(entry_path);
                 }
             }
         }
     }
-    Ok(())
 }
 
 fn validate_openshell_endpoint(endpoint: &str) -> Result<(), String> {
@@ -569,7 +568,7 @@ impl VmDriver {
         if let Some(uid) = sandbox.spec.as_ref().and_then(|spec| spec.run_as_uid) {
             command.arg("--vm-run-as-uid").arg(uid.to_string());
             // Make the state dir and rootfs writable by the user
-            let _ = chown_recursive(&state_dir, uid, uid);
+            chown_recursive(&state_dir, uid, uid);
         }
 
         for env in build_guest_environment(sandbox, &self.config, endpoint_override.as_deref()) {
@@ -1480,7 +1479,7 @@ fn check_gpu_privileges() -> Result<(), String> {
 // gRPC API surface, so boxing here would diverge from every other handler.
 #[allow(clippy::result_large_err)]
 fn validate_vm_sandbox(sandbox: &Sandbox, gpu_enabled: bool) -> Result<(), Status> {
-    if let Err(e) = std::fs::OpenOptions::new()
+    if let Err(e) = fs::OpenOptions::new()
         .read(true)
         .write(true)
         .open("/dev/kvm")

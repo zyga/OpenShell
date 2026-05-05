@@ -1202,21 +1202,22 @@ fn hash_path_id(path: &Path) -> String {
 }
 
 fn secure_socket_base(subdir: &str) -> Result<PathBuf, String> {
-    let base = if let Some(snap_common) = std::env::var_os("SNAP_COMMON") {
-        PathBuf::from(snap_common)
-    } else {
-        std::env::var_os("XDG_RUNTIME_DIR").map_or_else(
-            || {
-                let fallback = PathBuf::from("/tmp");
-                if fallback.is_dir() {
-                    fallback
-                } else {
-                    std::env::temp_dir()
-                }
-            },
-            PathBuf::from,
-        )
-    };
+    let base = std::env::var_os("SNAP_COMMON").map_or_else(
+        || {
+            std::env::var_os("XDG_RUNTIME_DIR").map_or_else(
+                || {
+                    let fallback = PathBuf::from("/tmp");
+                    if fallback.is_dir() {
+                        fallback
+                    } else {
+                        std::env::temp_dir()
+                    }
+                },
+                PathBuf::from,
+            )
+        },
+        PathBuf::from,
+    );
     let dir = base.join(subdir);
 
     if dir.exists() {
