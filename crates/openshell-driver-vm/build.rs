@@ -12,6 +12,8 @@ use std::{env, fs};
 
 fn main() {
     println!("cargo:rerun-if-env-changed=OPENSHELL_VM_RUNTIME_COMPRESSED_DIR");
+    let default_compressed_dir = default_compressed_runtime_dir();
+    println!("cargo:rerun-if-changed={}", default_compressed_dir.display());
 
     if let Ok(dir) = env::var("OPENSHELL_VM_RUNTIME_COMPRESSED_DIR") {
         println!("cargo:rerun-if-changed={dir}");
@@ -41,22 +43,7 @@ fn main() {
         }
     };
 
-    let compressed_dir = if let Ok(dir) = env::var("OPENSHELL_VM_RUNTIME_COMPRESSED_DIR") {
-        PathBuf::from(dir)
-    } else {
-        println!("cargo:warning=OPENSHELL_VM_RUNTIME_COMPRESSED_DIR not set");
-        println!("cargo:warning=Run: mise run vm:setup && mise run vm:supervisor");
-        generate_stub_resources(
-            &out_dir,
-            &[
-                &format!("{libkrun_name}.zst"),
-                &format!("{libkrunfw_name}.zst"),
-                "gvproxy.zst",
-                "openshell-sandbox.zst",
-            ],
-        );
-        return;
-    };
+    let compressed_dir = compressed_runtime_dir(&default_compressed_dir);
 
     if !compressed_dir.is_dir() {
         println!(
@@ -132,6 +119,33 @@ fn main() {
             ],
         );
     }
+}
+
+fn compressed_runtime_dir(default_compressed_dir: &Path) -> PathBuf {
+    if let Ok(dir) = env::var("OPENSHELL_VM_RUNTIME_COMPRESSED_DIR") {
+        return PathBuf::from(dir);
+    }
+
+    if default_compressed_dir.is_dir() {
+        println!(
+            "cargo:warning=OPENSHELL_VM_RUNTIME_COMPRESSED_DIR not set; using staged VM runtime artifacts from {}",
+            default_compressed_dir.display()
+        );
+        return default_compressed_dir.to_path_buf();
+    }
+
+    println!("cargo:warning=OPENSHELL_VM_RUNTIME_COMPRESSED_DIR not set");
+    default_compressed_dir.to_path_buf()
+}
+
+fn default_compressed_runtime_dir() -> PathBuf {
+    let manifest_dir =
+        PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set"));
+    manifest_dir
+        .parent()
+        .and_then(Path::parent)
+        .expect("openshell-driver-vm manifest should live under crates/openshell-driver-vm")
+        .join("target/vm-runtime-compressed")
 }
 
 fn generate_stub_resources(out_dir: &Path, names: &[&str]) {
