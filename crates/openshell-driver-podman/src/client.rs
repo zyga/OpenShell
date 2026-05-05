@@ -251,9 +251,7 @@ impl PodmanClient {
         Self { socket_path }
     }
 
-    async fn connect<B>(
-        &self,
-    ) -> Result<hyper::client::conn::http1::SendRequest<B>, PodmanApiError> 
+    async fn connect<B>(&self) -> Result<hyper::client::conn::http1::SendRequest<B>, PodmanApiError>
     where
         B: hyper::body::Body + 'static + Send,
         B::Data: Send,
@@ -285,9 +283,9 @@ impl PodmanClient {
                 &path_str
             };
 
-            let stream = UnixStream::connect(path_to_connect).await.map_err(|e| {
-                PodmanApiError::Connection(format!("{}: {e}", path_to_connect))
-            })?;
+            let stream = UnixStream::connect(path_to_connect)
+                .await
+                .map_err(|e| PodmanApiError::Connection(format!("{}: {e}", path_to_connect)))?;
 
             let (sender, conn) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
                 .await
@@ -327,7 +325,7 @@ impl PodmanClient {
         &self,
         req: Request<B>,
         timeout: Duration,
-    ) -> Result<(hyper::StatusCode, Bytes), PodmanApiError> 
+    ) -> Result<(hyper::StatusCode, Bytes), PodmanApiError>
     where
         B: hyper::body::Body + 'static + Send,
         B::Data: Send,

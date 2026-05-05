@@ -164,7 +164,7 @@ impl MultiplexService {
                 req
             })
             .service(request_id_middleware!(grpc_service));
-            
+
         let http_service = ::tower::ServiceBuilder::new()
             .map_request(move |mut req: Request<_>| {
                 if let Some(uid) = peer_uid {

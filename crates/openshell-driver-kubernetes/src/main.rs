@@ -63,8 +63,6 @@ struct Args {
 
     #[arg(long, env = "OPENSHELL_HOST_GATEWAY_IP")]
     host_gateway_ip: Option<String>,
-
-
 }
 
 #[tokio::main]

@@ -867,10 +867,16 @@ fn run_libkrun_vm(config: &VmLaunchConfig) -> Result<(), String> {
             if let Some(uid) = config.run_as_uid {
                 unsafe {
                     if libc::setresgid(uid, uid, uid) != 0 {
-                        eprintln!("libkrun worker: warning: setresgid failed ({}). If running in a strict snap, this is expected as AppArmor blocks capability setgid. The VM worker will run as root.", std::io::Error::last_os_error());
+                        eprintln!(
+                            "libkrun worker: warning: setresgid failed ({}). If running in a strict snap, this is expected as AppArmor blocks capability setgid. The VM worker will run as root.",
+                            std::io::Error::last_os_error()
+                        );
                     }
                     if libc::setresuid(uid, uid, uid) != 0 {
-                        eprintln!("libkrun worker: warning: setresuid failed ({}). If running in a strict snap, this is expected as AppArmor blocks capability setuid. The VM worker will run as root.", std::io::Error::last_os_error());
+                        eprintln!(
+                            "libkrun worker: warning: setresuid failed ({}). If running in a strict snap, this is expected as AppArmor blocks capability setuid. The VM worker will run as root.",
+                            std::io::Error::last_os_error()
+                        );
                     }
                 }
             }

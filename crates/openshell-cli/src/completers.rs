@@ -92,7 +92,11 @@ async fn completion_grpc_client(
         let channel = endpoint
             .connect_with_connector(tower::service_fn(move |_: tonic::transport::Uri| {
                 let path = path.clone();
-                async move { tokio::net::UnixStream::connect(path).await.map(hyper_util::rt::TokioIo::new) }
+                async move {
+                    tokio::net::UnixStream::connect(path)
+                        .await
+                        .map(hyper_util::rt::TokioIo::new)
+                }
             }))
             .await
             .ok()?;

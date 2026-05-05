@@ -260,7 +260,11 @@ pub async fn build_channel(server: &str, tls: &TlsOptions) -> Result<Channel> {
         return endpoint
             .connect_with_connector(tower::service_fn(move |_: tonic::transport::Uri| {
                 let path = path.clone();
-                async move { tokio::net::UnixStream::connect(path).await.map(hyper_util::rt::TokioIo::new) }
+                async move {
+                    tokio::net::UnixStream::connect(path)
+                        .await
+                        .map(hyper_util::rt::TokioIo::new)
+                }
             }))
             .await
             .into_diagnostic();

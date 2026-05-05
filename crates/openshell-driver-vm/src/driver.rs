@@ -17,6 +17,7 @@ use futures::{Stream, StreamExt};
 use nix::errno::Errno;
 use nix::sys::signal::{Signal, kill};
 use nix::unistd::Pid;
+use nix::unistd::{Gid, Uid};
 use oci_client::client::{Client as OciClient, ClientConfig};
 use oci_client::manifest::{ImageIndexEntry, OciDescriptor};
 use oci_client::secrets::RegistryAuth;
@@ -51,7 +52,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use tracing::{info, warn};
 use url::{Host, Url};
-use nix::unistd::{Uid, Gid};
 
 const DRIVER_NAME: &str = "openshell-driver-vm";
 const WATCH_BUFFER: usize = 256;
@@ -1480,8 +1480,14 @@ fn check_gpu_privileges() -> Result<(), String> {
 // gRPC API surface, so boxing here would diverge from every other handler.
 #[allow(clippy::result_large_err)]
 fn validate_vm_sandbox(sandbox: &Sandbox, gpu_enabled: bool) -> Result<(), Status> {
-    if let Err(e) = std::fs::OpenOptions::new().read(true).write(true).open("/dev/kvm") {
-        if e.kind() == std::io::ErrorKind::PermissionDenied || e.kind() == std::io::ErrorKind::NotFound {
+    if let Err(e) = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("/dev/kvm")
+    {
+        if e.kind() == std::io::ErrorKind::PermissionDenied
+            || e.kind() == std::io::ErrorKind::NotFound
+        {
             let diagnostic = openshell_core::kvm::diagnose_missing_kvm();
             return Err(Status::failed_precondition(diagnostic));
         }

@@ -1909,36 +1909,55 @@ async fn main() -> Result<()> {
         Some(Commands::Cluster {
             command: Some(command),
         }) => match command {
-            ClusterCommands::Init { namespace, registry, registry_username, registry_token, registry_authfile, kubeconfig } => {
+            ClusterCommands::Init {
+                namespace,
+                registry,
+                registry_username,
+                registry_token,
+                registry_authfile,
+                kubeconfig,
+            } => {
                 let gateway_name = match cli.gateway {
                     Some(name) => {
                         if name == "local-vm" {
-                            return Err(miette::miette!("The gateway name 'local-vm' is reserved."));
+                            return Err(miette::miette!(
+                                "The gateway name 'local-vm' is reserved."
+                            ));
                         }
                         name
-                    },
-                    None => return Err(miette::miette!("ERROR: --gateway is required to name the new K8s gateway")),
+                    }
+                    None => {
+                        return Err(miette::miette!(
+                            "ERROR: --gateway is required to name the new K8s gateway"
+                        ));
+                    }
                 };
 
                 let args: Vec<String> = std::env::args().collect();
-                if args.iter().any(|arg| arg == "--gateway-endpoint" || arg.starts_with("--gateway-endpoint=")) {
-                    return Err(miette::miette!("ERROR: no endpoint needed for k8s deployment, only --kubeconfig"));
+                if args.iter().any(|arg| {
+                    arg == "--gateway-endpoint" || arg.starts_with("--gateway-endpoint=")
+                }) {
+                    return Err(miette::miette!(
+                        "ERROR: no endpoint needed for k8s deployment, only --kubeconfig"
+                    ));
                 }
-
 
                 // Handle custom kubeconfig if provided
                 let mut _temp_kubeconfig: Option<tempfile::NamedTempFile> = None;
                 if let Some(config_path) = kubeconfig {
                     if config_path == "-" {
                         let mut buf = Vec::new();
-                        std::io::Read::read_to_end(&mut std::io::stdin(), &mut buf)
-                            .map_err(|e| miette::miette!("Failed to read kubeconfig from stdin: {}", e))?;
-                        
-                        let mut temp = tempfile::NamedTempFile::new()
-                            .map_err(|e| miette::miette!("Failed to create temporary file for kubeconfig: {}", e))?;
-                        std::io::Write::write_all(&mut temp, &buf)
-                            .map_err(|e| miette::miette!("Failed to write kubeconfig to temporary file: {}", e))?;
-                        
+                        std::io::Read::read_to_end(&mut std::io::stdin(), &mut buf).map_err(
+                            |e| miette::miette!("Failed to read kubeconfig from stdin: {}", e),
+                        )?;
+
+                        let mut temp = tempfile::NamedTempFile::new().map_err(|e| {
+                            miette::miette!("Failed to create temporary file for kubeconfig: {}", e)
+                        })?;
+                        std::io::Write::write_all(&mut temp, &buf).map_err(|e| {
+                            miette::miette!("Failed to write kubeconfig to temporary file: {}", e)
+                        })?;
+
                         // Keep the file alive for the duration of this command
                         let path = temp.path().to_path_buf();
                         _temp_kubeconfig = Some(temp);
@@ -1980,8 +1999,9 @@ async fn main() -> Result<()> {
                     &registry,
                     effective_username.as_deref(),
                     effective_password.as_deref(),
-                    effective_authfile.as_deref()
-                ).await?;
+                    effective_authfile.as_deref(),
+                )
+                .await?;
                 println!("Cluster initialized successfully.");
             }
         },
@@ -2041,7 +2061,7 @@ async fn main() -> Result<()> {
                 if name == "local-vm" {
                     return Err(miette::miette!("The gateway name 'local-vm' is reserved."));
                 }
-                
+
                 let gpu = if gpu {
                     vec!["auto".to_string()]
                 } else {
@@ -2106,7 +2126,7 @@ async fn main() -> Result<()> {
                         return Err(miette::miette!("The gateway name 'local-vm' is reserved."));
                     }
                 }
-                
+
                 run::gateway_add(
                     &endpoint,
                     name.as_deref(),

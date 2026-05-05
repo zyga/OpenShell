@@ -1081,7 +1081,6 @@ fn sandbox_template_to_k8s(
     host_gateway_ip: &str,
     inject_workspace: bool,
 ) -> serde_json::Value {
-
     let mut metadata = serde_json::Map::new();
     if !template.labels.is_empty() {
         metadata.insert("labels".to_string(), serde_json::json!(template.labels));

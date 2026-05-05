@@ -782,10 +782,7 @@ pub fn apply_edge_auth(tls: &mut TlsOptions, gateway_name: &str) {
     }
 }
 
-pub async fn gateway_list(
-    gateway_flag: &Option<String>,
-    tls: &TlsOptions,
-) -> Result<()> {
+pub async fn gateway_list(gateway_flag: &Option<String>, tls: &TlsOptions) -> Result<()> {
     let gateways = list_gateways()?;
     print_gateways_table(gateway_flag, tls).await?;
     if !gateways.is_empty() {
@@ -804,21 +801,28 @@ pub async fn gateway_select(
     tls: &TlsOptions,
 ) -> Result<()> {
     let interactive = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
-    gateway_select_with(name, gateway_flag, tls, interactive, |gateways, statuses, default| {
-        let prompt = format!(
-            "Select a gateway\n{}",
-            format_gateway_select_header(gateways)
-        );
-        let items = format_gateway_select_items(gateways, statuses);
-        Select::with_theme(&ColorfulTheme::default())
-            .with_prompt(prompt)
-            .items(&items)
-            .default(default)
-            .report(false)
-            .interact_opt()
-            .into_diagnostic()
-            .map(|selection| selection.map(|index| gateways[index].name.clone()))
-    }).await
+    gateway_select_with(
+        name,
+        gateway_flag,
+        tls,
+        interactive,
+        |gateways, statuses, default| {
+            let prompt = format!(
+                "Select a gateway\n{}",
+                format_gateway_select_header(gateways)
+            );
+            let items = format_gateway_select_items(gateways, statuses);
+            Select::with_theme(&ColorfulTheme::default())
+                .with_prompt(prompt)
+                .items(&items)
+                .default(default)
+                .report(false)
+                .interact_opt()
+                .into_diagnostic()
+                .map(|selection| selection.map(|index| gateways[index].name.clone()))
+        },
+    )
+    .await
 }
 
 fn format_gateway_select_header(gateways: &[GatewayMetadata]) -> String {
@@ -953,14 +957,12 @@ async fn fetch_gateway_statuses(gateways: &[GatewayMetadata], tls: &TlsOptions) 
                     return "Stopped".to_string();
                 }
             }
-            
+
             let mut gw_tls = tls.with_gateway_name(&g.name);
             apply_edge_auth(&mut gw_tls, &g.name);
-            
-            let check = async {
-                http_health_check(&g.gateway_endpoint, &gw_tls).await
-            };
-            
+
+            let check = async { http_health_check(&g.gateway_endpoint, &gw_tls).await };
+
             match tokio::time::timeout(std::time::Duration::from_millis(1500), check).await {
                 Ok(Ok(Some(status))) if status.is_success() => "OK".to_string(),
                 Ok(Ok(Some(_))) => "Error (HTTP)".to_string(),
@@ -969,7 +971,7 @@ async fn fetch_gateway_statuses(gateways: &[GatewayMetadata], tls: &TlsOptions) 
             }
         }
     });
-    
+
     futures::future::join_all(futures).await
 }
 
@@ -1509,13 +1511,13 @@ async fn http_health_check(server: &str, tls: &TlsOptions) -> Result<Option<Stat
             Ok(c) => c,
             Err(_) => return Ok(None),
         };
-        
+
         tokio::spawn(async move {
             if let Err(e) = conn.await {
                 tracing::debug!("Unix socket connection failed: {:?}", e);
             }
         });
-        
+
         let uri: hyper::Uri = "http://localhost/healthz".parse().into_diagnostic()?;
         let req = Request::builder()
             .method("GET")
@@ -1969,7 +1971,10 @@ pub async fn gateway_admin_info(name: &str, tls: &TlsOptions) -> Result<()> {
 
     let status_str = {
         let statuses = fetch_gateway_statuses(&[metadata.clone()], tls).await;
-        statuses.into_iter().next().unwrap_or_else(|| "Unknown".to_string())
+        statuses
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| "Unknown".to_string())
     };
 
     let status_display = match status_str.as_str() {
@@ -1983,11 +1988,7 @@ pub async fn gateway_admin_info(name: &str, tls: &TlsOptions) -> Result<()> {
     println!();
     println!("  {} {}", "Gateway: ".dimmed(), metadata.name);
     println!("  {} {}", "Status:  ".dimmed(), status_display);
-    println!(
-        "  {} {}",
-        "Endpoint:".dimmed(),
-        metadata.gateway_endpoint
-    );
+    println!("  {} {}", "Endpoint:".dimmed(), metadata.gateway_endpoint);
 
     if metadata.is_remote {
         if let Some(ref host) = metadata.remote_host {
@@ -6489,13 +6490,19 @@ mod tests {
             .expect("store gateway");
 
             let mut prompted = false;
-            tokio::runtime::Runtime::new().unwrap().block_on(
-                gateway_select_with(Some("alpha"), &None, &TlsOptions::default(), true, |_, _, _| {
-                    prompted = true;
-                    Ok(None)
-                })
-            )
-            .expect("select explicit gateway");
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(gateway_select_with(
+                    Some("alpha"),
+                    &None,
+                    &TlsOptions::default(),
+                    true,
+                    |_, _, _| {
+                        prompted = true;
+                        Ok(None)
+                    },
+                ))
+                .expect("select explicit gateway");
 
             assert_eq!(load_active_gateway().as_deref(), Some("alpha"));
             assert!(!prompted, "explicit gateway should skip prompting");
@@ -6519,13 +6526,19 @@ mod tests {
             super::save_active_gateway("beta").expect("save active gateway");
 
             let mut seen_default = None;
-            tokio::runtime::Runtime::new().unwrap().block_on(
-                gateway_select_with(None, &None, &TlsOptions::default(), true, |gateways, _, default| {
-                    seen_default = Some(default);
-                    Ok(Some(gateways[default].name.clone()))
-                })
-            )
-            .expect("interactive selection");
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(gateway_select_with(
+                    None,
+                    &None,
+                    &TlsOptions::default(),
+                    true,
+                    |gateways, _, default| {
+                        seen_default = Some(default);
+                        Ok(Some(gateways[default].name.clone()))
+                    },
+                ))
+                .expect("interactive selection");
 
             assert_eq!(seen_default, Some(1));
             assert_eq!(load_active_gateway().as_deref(), Some("beta"));
@@ -6543,13 +6556,19 @@ mod tests {
             .expect("store gateway");
 
             let mut prompted = false;
-            let err = tokio::runtime::Runtime::new().unwrap().block_on(
-                gateway_select_with(None, &None, &TlsOptions::default(), false, |_gateways, _default, _resolved| {
-                    prompted = true;
-                    Ok(None)
-                })
-            )
-            .unwrap_err();
+            let err = tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(gateway_select_with(
+                    None,
+                    &None,
+                    &TlsOptions::default(),
+                    false,
+                    |_gateways, _default, _resolved| {
+                        prompted = true;
+                        Ok(None)
+                    },
+                ))
+                .unwrap_err();
 
             assert!(err.to_string().contains("requires a TTY"));
             assert!(!prompted, "non-interactive mode should not prompt");

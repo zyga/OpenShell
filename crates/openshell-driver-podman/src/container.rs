@@ -354,7 +354,7 @@ pub fn build_container_spec(sandbox: &DriverSandbox, config: &PodmanComputeConfi
         // Side-load the supervisor binary from a standalone OCI image.
         // Podman resolves image_volumes at the libpod layer, mounting the
         // image's filesystem at the destination path without starting a
-        // container from it. 
+        // container from it.
         // The supervisor image (openshell-core.rock) is a full Ubuntu
         // rootfs with the binary at /usr/local/bin/openshell-sandbox, so it
         // appears at /opt/openshell/bin/usr/local/bin/openshell-sandbox.

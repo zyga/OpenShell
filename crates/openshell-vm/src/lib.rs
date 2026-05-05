@@ -1199,7 +1199,9 @@ fn check_kvm_access() -> Result<(), VmError> {
     match OpenOptions::new().read(true).open("/dev/kvm") {
         Ok(_) => Ok(()),
         Err(e) => {
-            if e.kind() == std::io::ErrorKind::NotFound || e.kind() == std::io::ErrorKind::PermissionDenied {
+            if e.kind() == std::io::ErrorKind::NotFound
+                || e.kind() == std::io::ErrorKind::PermissionDenied
+            {
                 Err(VmError::KvmAccess {
                     reason: openshell_core::kvm::diagnose_missing_kvm(),
                 })

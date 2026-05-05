@@ -411,7 +411,11 @@ impl ComputeRuntime {
             .map(|_| ())
     }
 
-    pub async fn create_sandbox(&self, sandbox: Sandbox, run_as_uid: Option<u32>) -> Result<Sandbox, Status> {
+    pub async fn create_sandbox(
+        &self,
+        sandbox: Sandbox,
+        run_as_uid: Option<u32>,
+    ) -> Result<Sandbox, Status> {
         let existing = self
             .store
             .get_message_by_name::<Sandbox>(sandbox.object_name())

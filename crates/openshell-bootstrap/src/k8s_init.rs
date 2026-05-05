@@ -145,7 +145,7 @@ pub async fn init_external_cluster(
                     .arg(u)
                     .arg("--password-stdin")
                     .arg(target_registry);
-                
+
                 // Pipe token to stdin
                 login_cmd.stdin(std::process::Stdio::piped());
                 login_cmd.stdout(std::process::Stdio::null());
@@ -159,13 +159,13 @@ pub async fn init_external_cluster(
                     use std::io::Write;
                     stdin.write_all(token.as_bytes()).into_diagnostic()?;
                 }
-                
+
                 let mut stderr_output = String::new();
                 if let Some(mut stderr) = child.stderr.take() {
                     use std::io::Read;
                     let _ = stderr.read_to_string(&mut stderr_output);
                 }
-                
+
                 let status = child
                     .wait()
                     .into_diagnostic()
@@ -186,13 +186,13 @@ pub async fn init_external_cluster(
 
         if is_core_rock {
             let target_image = format!("{}/openshell-core:local", target_registry);
-            
+
             let mut cmd = std::process::Command::new("skopeo");
             cmd.env("CONTAINERS_REGISTRIES_CONF", "/dev/null");
             cmd.arg("--insecure-policy")
                 .arg("copy")
                 .arg("--dest-tls-verify=false");
-                
+
             if has_authfile {
                 cmd.arg("--authfile").arg(authfile_path.as_os_str());
             }
@@ -210,11 +210,16 @@ pub async fn init_external_cluster(
                 }
                 Ok(out) => {
                     let stderr = String::from_utf8_lossy(&out.stderr);
-                    tracing::warn!("Failed to push openshell-core image. Skopeo output:\n{}", stderr.trim());
+                    tracing::warn!(
+                        "Failed to push openshell-core image. Skopeo output:\n{}",
+                        stderr.trim()
+                    );
                 }
                 Err(e) => {
                     if e.kind() == std::io::ErrorKind::NotFound {
-                        tracing::warn!("'skopeo' command not found. Please install skopeo to push images.");
+                        tracing::warn!(
+                            "'skopeo' command not found. Please install skopeo to push images."
+                        );
                     } else {
                         tracing::warn!("Failed to execute skopeo: {}", e);
                     }
@@ -229,7 +234,7 @@ pub async fn init_external_cluster(
             cmd1.arg("--insecure-policy")
                 .arg("copy")
                 .arg("--dest-tls-verify=false");
-                
+
             if has_authfile {
                 cmd1.arg("--authfile").arg(authfile_path.as_os_str());
             }
@@ -245,7 +250,7 @@ pub async fn init_external_cluster(
             cmd2.arg("--insecure-policy")
                 .arg("copy")
                 .arg("--dest-tls-verify=false");
-                
+
             if has_authfile {
                 cmd2.arg("--authfile").arg(authfile_path.as_os_str());
             }
@@ -264,22 +269,32 @@ pub async fn init_external_cluster(
                 (r1, r2) => {
                     if let Ok(out1) = &r1 {
                         if !out1.status.success() {
-                            tracing::warn!("Failed to push gateway image. Skopeo output:\n{}", String::from_utf8_lossy(&out1.stderr).trim());
+                            tracing::warn!(
+                                "Failed to push gateway image. Skopeo output:\n{}",
+                                String::from_utf8_lossy(&out1.stderr).trim()
+                            );
                         }
                     } else if let Err(e) = &r1 {
                         if e.kind() == std::io::ErrorKind::NotFound {
-                            tracing::warn!("'skopeo' command not found. Please install skopeo to push images.");
+                            tracing::warn!(
+                                "'skopeo' command not found. Please install skopeo to push images."
+                            );
                         } else {
                             tracing::warn!("Failed to execute skopeo (gateway): {}", e);
                         }
                     }
                     if let Ok(out2) = &r2 {
                         if !out2.status.success() {
-                            tracing::warn!("Failed to push supervisor image. Skopeo output:\n{}", String::from_utf8_lossy(&out2.stderr).trim());
+                            tracing::warn!(
+                                "Failed to push supervisor image. Skopeo output:\n{}",
+                                String::from_utf8_lossy(&out2.stderr).trim()
+                            );
                         }
                     } else if let Err(e) = &r2 {
                         if e.kind() == std::io::ErrorKind::NotFound {
-                            tracing::warn!("'skopeo' command not found. Please install skopeo to push images.");
+                            tracing::warn!(
+                                "'skopeo' command not found. Please install skopeo to push images."
+                            );
                         } else {
                             tracing::warn!("Failed to execute skopeo (supervisor): {}", e);
                         }
@@ -386,7 +401,9 @@ pub async fn init_external_cluster(
 
     // 7. Save gateway metadata and set active gateway
     let metadata = crate::metadata::create_gateway_metadata(
-        gateway_name, None, 30051, // NodePort from gateway.yaml
+        gateway_name,
+        None,
+        30051, // NodePort from gateway.yaml
     );
     crate::metadata::store_gateway_metadata(gateway_name, &metadata)?;
     crate::metadata::save_active_gateway(gateway_name)?;
