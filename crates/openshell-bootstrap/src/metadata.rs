@@ -269,7 +269,7 @@ pub fn store_gateway_metadata(name: &str, metadata: &GatewayMetadata) -> Result<
 
 pub fn load_gateway_metadata(name: &str) -> Result<GatewayMetadata> {
     let path = stored_metadata_path(name)?;
-    
+
     if !path.exists() && name == "local-vm" && std::env::var("SNAP").is_ok() {
         let endpoint = std::env::var("OPENSHELL_GATEWAY_ENDPOINT").unwrap_or_else(|_| {
             let snap_common = std::env::var("SNAP_COMMON")
@@ -290,6 +290,7 @@ pub fn load_gateway_metadata(name: &str) -> Result<GatewayMetadata> {
             oidc_client_id: None,
             oidc_audience: None,
             oidc_scopes: None,
+            vm_driver_state_dir: None,
         });
     }
 
@@ -366,7 +367,7 @@ pub fn clear_last_sandbox_if_matches(gateway: &str, sandbox: &str) {
 pub fn list_gateways() -> Result<Vec<GatewayMetadata>> {
     let dir = gateways_dir()?;
     let mut gateways = Vec::new();
-    
+
     if dir.exists() {
         let entries = std::fs::read_dir(&dir)
             .into_diagnostic()
