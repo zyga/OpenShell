@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use openshell_driver_podman::client::PodmanClient;
 
-/// Initialize Podman to serve as a compute driver for OpenShell.
+/// Initialize Podman to serve as a compute driver for `OpenShell`.
 pub async fn init() -> Result<()> {
     println!("{}", "Initializing Podman for OpenShell...".bold());
 
@@ -17,9 +17,9 @@ pub async fn init() -> Result<()> {
         if env::var("SNAP").is_ok() {
             "tcp://127.0.0.1:8888".to_string()
         } else if let Ok(snap_user_common) = env::var("SNAP_USER_COMMON") {
-            format!("{}/podman.sock", snap_user_common)
+            format!("{snap_user_common}/podman.sock")
         } else if let Ok(home) = env::var("HOME") {
-            format!("{}/snap/openshell/common/podman.sock", home)
+            format!("{home}/snap/openshell/common/podman.sock")
         } else {
             "/var/snap/openshell/common/podman.sock".to_string()
         }
@@ -30,7 +30,7 @@ pub async fn init() -> Result<()> {
 
     if !path_str.starts_with("tcp://") && !socket_path_buf.exists() {
         println!("\n{}", "Podman socket not found!".red().bold());
-        println!("Expected socket at: {}", socket_path);
+        println!("Expected socket at: {socket_path}");
 
         if env::var("SNAP").is_ok() {
             println!(
@@ -47,7 +47,7 @@ pub async fn init() -> Result<()> {
         return Err(miette!("Podman socket not found at {}", socket_path));
     }
 
-    println!("✓ Found Podman socket at: {}", socket_path);
+    println!("✓ Found Podman socket at: {socket_path}");
 
     // 2. Verify connectivity
     let client = PodmanClient::new(socket_path_buf.clone());
@@ -65,18 +65,13 @@ pub async fn init() -> Result<()> {
         .join("images")
         .join("openshell-core.rock");
 
-    if !rock_path.exists() {
-        println!(
-            "{}",
-            "Warning: openshell-core.rock not found locally. Skipping image load.".yellow()
-        );
-    } else {
+    if rock_path.exists() {
         println!("Loading sandbox images from {}...", rock_path.display());
         println!("Loading sandbox images into Podman via API...");
 
         match client.load_image_archive(&rock_path).await {
             Ok(name) => {
-                println!("✓ Successfully loaded image: {}", name);
+                println!("✓ Successfully loaded image: {name}");
 
                 // Tag it as openshell/supervisor:latest
                 if let Err(e) = client
@@ -85,11 +80,8 @@ pub async fn init() -> Result<()> {
                 {
                     println!(
                         "{}",
-                        format!(
-                            "Warning: Failed to tag image as openshell/supervisor:latest: {}",
-                            e
-                        )
-                        .yellow()
+                        format!("Warning: Failed to tag image as openshell/supervisor:latest: {e}")
+                            .yellow()
                     );
                 } else {
                     println!("✓ Tagged image as openshell/supervisor:latest");
@@ -99,11 +91,8 @@ pub async fn init() -> Result<()> {
                 if let Err(e) = client.tag_image(&name, "openshell/base", "latest").await {
                     println!(
                         "{}",
-                        format!(
-                            "Warning: Failed to tag image as openshell/base:latest: {}",
-                            e
-                        )
-                        .yellow()
+                        format!("Warning: Failed to tag image as openshell/base:latest: {e}")
+                            .yellow()
                     );
                 } else {
                     println!("✓ Tagged image as openshell/base:latest");
@@ -114,6 +103,11 @@ pub async fn init() -> Result<()> {
                 return Err(miette!("Failed to load OCI archive into Podman: {}", e));
             }
         }
+    } else {
+        println!(
+            "{}",
+            "Warning: openshell-core.rock not found locally. Skipping image load.".yellow()
+        );
     }
 
     // 4. Print configuration instructions
@@ -122,15 +116,11 @@ pub async fn init() -> Result<()> {
 
     if env::var("SNAP").is_ok() {
         println!("\nSince you are running OpenShell as a snap, run:");
-        println!(
-            "  sudo snap set openshell driver=podman podman-socket=\"{}\"",
-            socket_path
-        );
+        println!("  sudo snap set openshell driver=podman podman-socket=\"{socket_path}\"");
     } else {
         println!("\nSince you are running OpenShell natively, ensure you start the gateway with:");
         println!(
-            "  OPENSHELL_PODMAN_SOCKET=\"{}\" openshell gateway start --compute-driver podman",
-            socket_path
+            "  OPENSHELL_PODMAN_SOCKET=\"{socket_path}\" openshell gateway start --compute-driver podman"
         );
         println!("\nOr add this to your config.toml:");
         println!("  compute_drivers = [\"podman\"]");

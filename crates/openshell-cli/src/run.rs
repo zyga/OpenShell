@@ -953,7 +953,7 @@ async fn fetch_gateway_statuses(gateways: &[GatewayMetadata], tls: &TlsOptions) 
         async move {
             if g.gateway_endpoint.starts_with("unix://") {
                 let path = g.gateway_endpoint.trim_start_matches("unix://");
-                if !std::path::Path::new(path).exists() {
+                if !Path::new(path).exists() {
                     return "Stopped".to_string();
                 }
             }
@@ -963,10 +963,10 @@ async fn fetch_gateway_statuses(gateways: &[GatewayMetadata], tls: &TlsOptions) 
 
             let check = async { http_health_check(&g.gateway_endpoint, &gw_tls).await };
 
-            match tokio::time::timeout(std::time::Duration::from_millis(1500), check).await {
+            match tokio::time::timeout(Duration::from_millis(1500), check).await {
                 Ok(Ok(Some(status))) if status.is_success() => "OK".to_string(),
                 Ok(Ok(Some(_))) => "Error (HTTP)".to_string(),
-                Ok(Ok(None)) | Ok(Err(_)) => "Error".to_string(),
+                Ok(Ok(None) | Err(_)) => "Error".to_string(),
                 Err(_) => "Timeout".to_string(),
             }
         }
@@ -1502,14 +1502,12 @@ async fn http_health_check(server: &str, tls: &TlsOptions) -> Result<Option<Stat
     #[cfg(unix)]
     if let Some(path) = server.strip_prefix("unix://") {
         let path = path.to_string();
-        let stream = match tokio::net::UnixStream::connect(&path).await {
-            Ok(s) => s,
-            Err(_) => return Ok(None),
+        let Ok(stream) = tokio::net::UnixStream::connect(&path).await else {
+            return Ok(None);
         };
         let io = hyper_util::rt::TokioIo::new(stream);
-        let (mut sender, conn) = match hyper::client::conn::http1::handshake(io).await {
-            Ok(c) => c,
-            Err(_) => return Ok(None),
+        let Ok((mut sender, conn)) = hyper::client::conn::http1::handshake(io).await else {
+            return Ok(None);
         };
 
         tokio::spawn(async move {
@@ -1970,7 +1968,7 @@ pub async fn gateway_admin_info(name: &str, tls: &TlsOptions) -> Result<()> {
     })?;
 
     let status_str = {
-        let statuses = fetch_gateway_statuses(&[metadata.clone()], tls).await;
+        let statuses = fetch_gateway_statuses(std::slice::from_ref(&metadata), tls).await;
         statuses
             .into_iter()
             .next()
@@ -2480,15 +2478,14 @@ pub async fn sandbox_create(
             let msg = status.message();
             if msg.contains("gateway does not have KVM permissions") {
                 eprintln!();
-                eprintln!("ERROR: {}", msg);
+                eprintln!("ERROR: {msg}");
                 eprintln!();
                 std::process::exit(1);
             }
             if msg.is_empty() {
                 return Err(status).into_diagnostic();
-            } else {
-                return Err(miette::miette!("{msg}"));
             }
+            return Err(miette::miette!("{msg}"));
         }
     };
     let sandbox = response

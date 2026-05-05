@@ -11,8 +11,7 @@ use owo_colors::OwoColorize;
 use std::io::Write;
 
 use openshell_bootstrap::{
-    edge_token::load_edge_token, get_gateway_metadata, list_gateways, load_active_gateway,
-    load_gateway_metadata, load_last_sandbox, save_last_sandbox,
+    list_gateways, load_active_gateway, load_gateway_metadata, load_last_sandbox, save_last_sandbox,
 };
 use openshell_cli::completers;
 use openshell_cli::run;
@@ -102,11 +101,11 @@ fn resolve_gateway(
     }
 
     if let Ok(snap_common) = std::env::var("SNAP_COMMON") {
-        let sock_path = format!("{}/run/gateway.sock", snap_common);
+        let sock_path = format!("{snap_common}/run/gateway.sock");
         if std::path::Path::new(&sock_path).exists() {
             return Ok(GatewayContext {
                 name: "local-vm".to_string(),
-                endpoint: format!("unix://{}", sock_path),
+                endpoint: format!("unix://{sock_path}"),
             });
         }
     }
@@ -133,62 +132,13 @@ fn resolve_gateway_name(gateway_flag: &Option<String>) -> Option<String> {
         .or_else(load_active_gateway)
         .or_else(|| {
             if let Ok(snap_common) = std::env::var("SNAP_COMMON") {
-                let sock_path = format!("{}/run/gateway.sock", snap_common);
+                let sock_path = format!("{snap_common}/run/gateway.sock");
                 if std::path::Path::new(&sock_path).exists() {
                     return Some("local-vm".to_string());
                 }
             }
             None
         })
-}
-
-/// Apply authentication token from local storage based on gateway auth mode.
-///
-/// Handles both Cloudflare Access (`edge_token`) and OIDC (`oidc_token`)
-/// auth modes by loading the stored token and setting it on `TlsOptions`.
-/// For OIDC, automatically refreshes the token if it's near expiry.
-fn apply_auth(tls: &mut TlsOptions, gateway_name: &str) {
-    let Some(meta) = get_gateway_metadata(gateway_name) else {
-        return;
-    };
-    match meta.auth_mode.as_deref() {
-        Some("cloudflare_jwt") => {
-            if let Some(token) = load_edge_token(gateway_name) {
-                tls.edge_token = Some(token);
-            }
-        }
-        Some("oidc") => {
-            let Some(bundle) = openshell_bootstrap::oidc_token::load_oidc_token(gateway_name)
-            else {
-                return;
-            };
-            if openshell_bootstrap::oidc_token::is_token_expired(&bundle) {
-                // Try to refresh the token in-place using block_in_place
-                // so the async refresh can run within the sync apply_auth call.
-                match tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current()
-                        .block_on(openshell_cli::oidc_auth::oidc_refresh_token(&bundle))
-                }) {
-                    Ok(refreshed) => {
-                        let _ = openshell_bootstrap::oidc_token::store_oidc_token(
-                            gateway_name,
-                            &refreshed,
-                        );
-                        tls.oidc_token = Some(refreshed.access_token);
-                    }
-                    Err(e) => {
-                        tracing::warn!("OIDC token refresh failed: {e}");
-                        // Use the expired token anyway — server will reject it
-                        // with a clear error prompting re-login.
-                        tls.oidc_token = Some(bundle.access_token);
-                    }
-                }
-            } else {
-                tls.oidc_token = Some(bundle.access_token);
-            }
-        }
-        _ => {}
-    }
 }
 
 /// Resolve a sandbox name, falling back to the last-used sandbox for the gateway.
@@ -494,7 +444,7 @@ enum Commands {
     // ===================================================================
     // CLUSTER COMMANDS
     // ===================================================================
-    /// Manage the OpenShell cluster deployment.
+    /// Manage the `OpenShell` cluster deployment.
     #[command(help_template = SUBCOMMAND_HELP_TEMPLATE)]
     Cluster {
         #[command(subcommand)]
@@ -671,7 +621,7 @@ fn normalize_completion_script(output: Vec<u8>, executable: &std::path::Path) ->
 
 #[derive(Subcommand, Debug)]
 enum ClusterCommands {
-    /// Initialize the OpenShell components in the current Kubernetes cluster.
+    /// Initialize the `OpenShell` components in the current Kubernetes cluster.
     #[command(help_template = LEAF_HELP_TEMPLATE, next_help_heading = "FLAGS")]
     Init {
         /// The namespace to deploy into.
@@ -703,7 +653,7 @@ enum ClusterCommands {
 
 #[derive(Subcommand, Debug)]
 enum PodmanCommands {
-    /// Initialize Podman to serve as a compute driver for OpenShell.
+    /// Initialize Podman to serve as a compute driver for `OpenShell`.
     #[command(help_template = LEAF_HELP_TEMPLATE, next_help_heading = "FLAGS")]
     Init,
 }
@@ -1943,8 +1893,7 @@ async fn main() -> Result<()> {
                 }
 
                 // Handle custom kubeconfig if provided
-                let mut _temp_kubeconfig: Option<tempfile::NamedTempFile> = None;
-                if let Some(config_path) = kubeconfig {
+                let _temp_kubeconfig = if let Some(config_path) = kubeconfig {
                     if config_path == "-" {
                         let mut buf = Vec::new();
                         std::io::Read::read_to_end(&mut std::io::stdin(), &mut buf).map_err(
@@ -1954,24 +1903,27 @@ async fn main() -> Result<()> {
                         let mut temp = tempfile::NamedTempFile::new().map_err(|e| {
                             miette::miette!("Failed to create temporary file for kubeconfig: {}", e)
                         })?;
-                        std::io::Write::write_all(&mut temp, &buf).map_err(|e| {
+                        Write::write_all(&mut temp, &buf).map_err(|e| {
                             miette::miette!("Failed to write kubeconfig to temporary file: {}", e)
                         })?;
 
                         // Keep the file alive for the duration of this command
                         let path = temp.path().to_path_buf();
-                        _temp_kubeconfig = Some(temp);
                         #[allow(unsafe_code)]
                         unsafe {
                             std::env::set_var("KUBECONFIG", path);
                         }
+                        Some(temp)
                     } else {
                         #[allow(unsafe_code)]
                         unsafe {
                             std::env::set_var("KUBECONFIG", config_path);
                         }
+                        None
                     }
-                }
+                } else {
+                    None
+                };
 
                 let effective_username = std::env::var("OPENSHELL_REGISTRY_USERNAME")
                     .ok()
@@ -2121,10 +2073,10 @@ async fn main() -> Result<()> {
                 oidc_audience,
                 oidc_scopes,
             } => {
-                if let Some(n) = &name {
-                    if n == "local-vm" {
-                        return Err(miette::miette!("The gateway name 'local-vm' is reserved."));
-                    }
+                if let Some(n) = &name
+                    && n == "local-vm"
+                {
+                    return Err(miette::miette!("The gateway name 'local-vm' is reserved."));
                 }
 
                 run::gateway_add(

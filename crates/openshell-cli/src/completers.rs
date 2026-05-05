@@ -164,7 +164,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         with_isolated_cli_env(temp.path(), || {
             let result = complete_gateway_names(OsStr::new(""));
-            assert_eq!(result.len(), 0, "Gateways found: {:?}", result);
+            assert_eq!(result.len(), 0, "Gateways found: {result:?}");
         });
     }
 
@@ -173,7 +173,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         with_isolated_cli_env(temp.path(), || {
             let result = complete_sandbox_names(OsStr::new(""));
-            assert_eq!(result.len(), 0, "Gateways found: {:?}", result);
+            assert_eq!(result.len(), 0, "Gateways found: {result:?}");
         });
     }
 
@@ -182,7 +182,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         with_isolated_cli_env(temp.path(), || {
             let result = complete_provider_names(OsStr::new(""));
-            assert_eq!(result.len(), 0, "Gateways found: {:?}", result);
+            assert_eq!(result.len(), 0, "Gateways found: {result:?}");
         });
     }
 
