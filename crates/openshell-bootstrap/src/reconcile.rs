@@ -1,8 +1,5 @@
-use crate::constants::{
-    CLIENT_TLS_SECRET_NAME, SERVER_CLIENT_CA_SECRET_NAME, SERVER_TLS_SECRET_NAME,
-};
+use crate::constants::{CLIENT_TLS_SECRET_NAME, SERVER_TLS_SECRET_NAME};
 use crate::pki::PkiBundle;
-use k8s_openapi::ByteString;
 use k8s_openapi::api::apps::v1::StatefulSet;
 use k8s_openapi::api::core::v1::Secret;
 use kube::{
@@ -10,14 +7,12 @@ use kube::{
     api::{Patch, PatchParams},
 };
 use miette::{IntoDiagnostic, Result};
-use std::collections::BTreeMap;
 
 pub async fn try_load_pki(client: Client, namespace: &str) -> Result<Option<PkiBundle>> {
     let secrets: Api<Secret> = Api::namespaced(client, namespace);
 
-    let client_tls = match secrets.get(CLIENT_TLS_SECRET_NAME).await {
-        Ok(s) => s,
-        Err(_) => return Ok(None),
+    let Ok(client_tls) = secrets.get(CLIENT_TLS_SECRET_NAME).await else {
+        return Ok(None);
     };
     let ca_cert = client_tls
         .data
@@ -35,9 +30,8 @@ pub async fn try_load_pki(client: Client, namespace: &str) -> Result<Option<PkiB
         .and_then(|d| d.get("tls.key"))
         .map(|b| String::from_utf8_lossy(&b.0).to_string());
 
-    let server_tls = match secrets.get(SERVER_TLS_SECRET_NAME).await {
-        Ok(s) => s,
-        Err(_) => return Ok(None),
+    let Ok(server_tls) = secrets.get(SERVER_TLS_SECRET_NAME).await else {
+        return Ok(None);
     };
     let server_cert = server_tls
         .data
@@ -127,8 +121,7 @@ pub async fn adopt_legacy_resources(client: Client, namespace: &str) -> Result<(
         };
     }
 
-    let sts: Api<k8s_openapi::api::apps::v1::StatefulSet> =
-        Api::namespaced(client.clone(), namespace);
+    let sts: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
     let svc: Api<k8s_openapi::api::core::v1::Service> = Api::namespaced(client.clone(), namespace);
     let sa: Api<k8s_openapi::api::core::v1::ServiceAccount> =
         Api::namespaced(client.clone(), namespace);

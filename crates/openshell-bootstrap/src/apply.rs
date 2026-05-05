@@ -21,13 +21,17 @@ pub async fn apply_yaml(client: Client, yaml: &str, namespace: &str) -> Result<(
         }
     };
 
+    let mut objects = Vec::new();
     for document in serde_yml::Deserializer::from_str(yaml) {
         let value = serde_yml::Value::deserialize(document).into_diagnostic()?;
         if value.is_null() {
             continue;
         }
 
-        let obj: DynamicObject = serde_yml::from_value(value).into_diagnostic()?;
+        objects.push(serde_yml::from_value::<DynamicObject>(value).into_diagnostic()?);
+    }
+
+    for obj in objects {
         let types = obj.types.as_ref().unwrap();
         let (ar, caps) = discovery
             .resolve_gvk(&kube::api::GroupVersionKind::try_from(types).unwrap())

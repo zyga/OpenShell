@@ -10,7 +10,6 @@ use kube::{
 };
 use miette::{Context, IntoDiagnostic, Result};
 use std::collections::BTreeMap;
-use std::path::Path;
 
 use crate::constants::{
     CLIENT_TLS_SECRET_NAME, SERVER_CLIENT_CA_SECRET_NAME, SERVER_TLS_SECRET_NAME,
@@ -76,18 +75,18 @@ pub async fn init_external_cluster(
     let chart_path = if snap_dir == "." {
         "../../../deploy/helm/openshell".to_string()
     } else {
-        format!("{}/helm-charts/openshell", snap_dir)
+        format!("{snap_dir}/helm-charts/openshell")
     };
 
     let helm_bin = if snap_dir == "." {
         "helm".to_string()
     } else {
-        format!("{}/bin/helm", snap_dir)
+        format!("{snap_dir}/bin/helm")
     };
 
-    let gateway_tar = format!("{}/images/gateway.tar", snap_dir);
-    let supervisor_tar = format!("{}/images/supervisor.tar", snap_dir);
-    let core_rock = format!("{}/images/openshell-core.rock", snap_dir);
+    let gateway_tar = format!("{snap_dir}/images/gateway.tar");
+    let supervisor_tar = format!("{snap_dir}/images/supervisor.tar");
+    let core_rock = format!("{snap_dir}/images/openshell-core.rock");
 
     let (has_bundled_images, is_core_rock) = if std::path::Path::new(&core_rock).exists() {
         (true, true)
@@ -185,7 +184,7 @@ pub async fn init_external_cluster(
         let has_authfile = registry_authfile.is_some() || registry_token.is_some();
 
         if is_core_rock {
-            let target_image = format!("{}/openshell-core:local", target_registry);
+            let target_image = format!("{target_registry}/openshell-core:local");
 
             let mut cmd = std::process::Command::new("skopeo");
             cmd.env("CONTAINERS_REGISTRIES_CONF", "/dev/null");
@@ -198,9 +197,9 @@ pub async fn init_external_cluster(
             }
 
             let output = cmd
-                .arg(format!("--tmpdir={}", snap_user_data))
-                .arg(format!("oci-archive:{}", core_rock))
-                .arg(format!("docker://{}", target_image))
+                .arg(format!("--tmpdir={snap_user_data}"))
+                .arg(format!("oci-archive:{core_rock}"))
+                .arg(format!("docker://{target_image}"))
                 .output();
 
             match output {
@@ -226,8 +225,8 @@ pub async fn init_external_cluster(
                 }
             }
         } else {
-            let target_gateway = format!("{}/openshell-gateway:dev", target_registry);
-            let target_supervisor = format!("{}/openshell-supervisor:dev", target_registry);
+            let target_gateway = format!("{target_registry}/openshell-gateway:dev");
+            let target_supervisor = format!("{target_registry}/openshell-supervisor:dev");
 
             let mut cmd1 = std::process::Command::new("skopeo");
             cmd1.env("CONTAINERS_REGISTRIES_CONF", "/dev/null");
@@ -240,9 +239,9 @@ pub async fn init_external_cluster(
             }
 
             let o1 = cmd1
-                .arg(format!("--tmpdir={}", snap_user_data))
-                .arg(format!("oci-archive:{}", gateway_tar))
-                .arg(format!("docker://{}", target_gateway))
+                .arg(format!("--tmpdir={snap_user_data}"))
+                .arg(format!("oci-archive:{gateway_tar}"))
+                .arg(format!("docker://{target_gateway}"))
                 .output();
 
             let mut cmd2 = std::process::Command::new("skopeo");
@@ -256,9 +255,9 @@ pub async fn init_external_cluster(
             }
 
             let o2 = cmd2
-                .arg(format!("--tmpdir={}", snap_user_data))
-                .arg(format!("oci-archive:{}", supervisor_tar))
-                .arg(format!("docker://{}", target_supervisor))
+                .arg(format!("--tmpdir={snap_user_data}"))
+                .arg(format!("oci-archive:{supervisor_tar}"))
+                .arg(format!("docker://{target_supervisor}"))
                 .output();
 
             match (o1, o2) {
@@ -336,18 +335,14 @@ pub async fn init_external_cluster(
         if is_core_rock {
             helm_cmd
                 .arg("--set")
-                .arg(format!(
-                    "image.repository={}/openshell-core",
-                    target_registry
-                ))
+                .arg(format!("image.repository={target_registry}/openshell-core"))
                 .arg("--set")
                 .arg("image.tag=local")
                 .arg("--set")
                 .arg("image.pullPolicy=Always")
                 .arg("--set")
                 .arg(format!(
-                    "supervisorImage={}/openshell-core:local",
-                    target_registry
+                    "supervisorImage={target_registry}/openshell-core:local"
                 ))
                 .arg("--set")
                 .arg("supervisorImagePullPolicy=Always");
@@ -355,8 +350,7 @@ pub async fn init_external_cluster(
             helm_cmd
                 .arg("--set")
                 .arg(format!(
-                    "image.repository={}/openshell-gateway",
-                    target_registry
+                    "image.repository={target_registry}/openshell-gateway"
                 ))
                 .arg("--set")
                 .arg("image.tag=dev")
@@ -364,8 +358,7 @@ pub async fn init_external_cluster(
                 .arg("image.pullPolicy=Always")
                 .arg("--set")
                 .arg(format!(
-                    "supervisorImage={}/openshell-supervisor:dev",
-                    target_registry
+                    "supervisorImage={target_registry}/openshell-supervisor:dev"
                 ))
                 .arg("--set")
                 .arg("supervisorImagePullPolicy=Always");
@@ -493,7 +486,7 @@ async fn ensure_ssh_handshake_secret(client: Client, namespace: &str) -> Result<
     let mut secret_val = String::with_capacity(64);
     for b in buf {
         use std::fmt::Write;
-        write!(&mut secret_val, "{:02x}", b).unwrap();
+        write!(&mut secret_val, "{b:02x}").unwrap();
     }
     let mut data = BTreeMap::new();
     data.insert(

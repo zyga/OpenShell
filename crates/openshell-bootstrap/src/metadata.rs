@@ -386,10 +386,11 @@ pub fn list_gateways() -> Result<Vec<GatewayMetadata>> {
         }
     }
 
-    if std::env::var("SNAP").is_ok() && !gateways.iter().any(|g| g.name == "local-vm") {
-        if let Ok(metadata) = load_gateway_metadata("local-vm") {
-            gateways.push(metadata);
-        }
+    if std::env::var("SNAP").is_ok()
+        && !gateways.iter().any(|g| g.name == "local-vm")
+        && let Ok(metadata) = load_gateway_metadata("local-vm")
+    {
+        gateways.push(metadata);
     }
 
     // Sort by name for stable output
