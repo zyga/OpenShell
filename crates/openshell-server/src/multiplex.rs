@@ -112,7 +112,7 @@ macro_rules! request_id_middleware {
 /// the largest payload and well within this cap under normal use.
 const MAX_GRPC_DECODE_SIZE: usize = 1_048_576;
 
-/// Extractor struct for the peer's UID (extracted from SO_PEERCRED on Unix sockets).
+/// Extractor struct for the peer's UID (extracted from `SO_PEERCRED` on Unix sockets).
 #[derive(Clone, Copy, Debug)]
 pub struct PeerUid(pub u32);
 
