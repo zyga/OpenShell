@@ -1380,6 +1380,7 @@ mod tests {
             vsock_cid: Some(4),
             guest_mac: Some("02:00:00:00:00:01".to_string()),
             gateway_port: Some(8080),
+            run_as_uid: None,
         }
     }
 
