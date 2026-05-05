@@ -820,14 +820,13 @@ fn apply_supervisor_sideload(
                 "mountPath": SUPERVISOR_MOUNT_PATH,
             }],
         });
-        if !supervisor_image_pull_policy.is_empty() {
-            if let Some(ic) = init_container.as_object_mut() {
+        if !supervisor_image_pull_policy.is_empty()
+            && let Some(ic) = init_container.as_object_mut() {
                 ic.insert(
                     "imagePullPolicy".to_string(),
                     serde_json::json!(supervisor_image_pull_policy),
                 );
             }
-        }
         init_containers.push(init_container);
     }
 }
