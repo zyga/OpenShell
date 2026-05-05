@@ -285,7 +285,7 @@ impl PodmanClient {
 
             let stream = UnixStream::connect(path_to_connect)
                 .await
-                .map_err(|e| PodmanApiError::Connection(format!("{}: {e}", path_to_connect)))?;
+                .map_err(|e| PodmanApiError::Connection(format!("{path_to_connect}: {e}")))?;
 
             let (sender, conn) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
                 .await
@@ -512,7 +512,7 @@ impl PodmanClient {
     }
 
     pub async fn tag_image(&self, name: &str, repo: &str, tag: &str) -> Result<(), PodmanApiError> {
-        let path = format!("/images/{}/tag?repo={}&tag={}", name, repo, tag);
+        let path = format!("/images/{name}/tag?repo={repo}&tag={tag}");
         self.request_ok(hyper::Method::POST, &path, None).await
     }
 
@@ -529,9 +529,9 @@ impl PodmanClient {
 
         let mut file = File::open(path)
             .await
-            .map_err(|e| PodmanApiError::Connection(format!("Failed to open archive: {}", e)))?;
+            .map_err(|e| PodmanApiError::Connection(format!("Failed to open archive: {e}")))?;
 
-        let (tx, rx) = tokio::sync::mpsc::channel::<Result<Frame<Bytes>, std::io::Error>>(2);
+        let (tx, rx) = mpsc::channel::<Result<Frame<Bytes>, std::io::Error>>(2);
 
         tokio::spawn(async move {
             let mut buf = vec![0; 8 * 1024 * 1024]; // 8 MB chunks
@@ -574,19 +574,18 @@ impl PodmanClient {
         // Look for "Loaded image: <name>"
         let mut loaded_name = None;
         for line in output.lines() {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
-                if let Some(stream) = json.get("stream").and_then(|s| s.as_str()) {
-                    if let Some(name) = stream.strip_prefix("Loaded image: ") {
+            if let Ok(json) = serde_json::from_str::<Value>(line) {
+                if let Some(stream) = json.get("stream").and_then(|s| s.as_str())
+                    && let Some(name) = stream.strip_prefix("Loaded image: ") {
                         loaded_name = Some(name.trim().to_string());
                     }
-                }
             } else if let Some(name) = line.strip_prefix("Loaded image: ") {
                 loaded_name = Some(name.trim().to_string());
             }
         }
 
         loaded_name.ok_or_else(|| {
-            PodmanApiError::Connection(format!("Could not extract image name from: {}", output))
+            PodmanApiError::Connection(format!("Could not extract image name from: {output}"))
         })
     }
 
