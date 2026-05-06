@@ -1,0 +1,36 @@
+#!/bin/bash
+# Wrapper around openssh-client for use inside the openshell snap.
+#
+# In strict snap confinement the SSSD NSS socket is not accessible, so
+# getpwuid() fails for domain users (e.g. SSSD / Active Directory). OpenSSH
+# calls getpwuid() early in startup and exits if it returns NULL.
+#
+# This wrapper uses libnss_wrapper to intercept NSS lookups and return a
+# synthetic passwd/group entry for the current UID so that SSH can start.
+
+set -e
+
+UID_VAL=$(id -u 2>/dev/null || echo "1000")
+GID_VAL=$(id -g 2>/dev/null || echo "1000")
+
+# Derive a safe username: prefer USER/LOGNAME, strip chars invalid in passwd.
+RAW_NAME="${USER:-${LOGNAME:-user}}"
+USERNAME=$(printf '%s' "$RAW_NAME" | tr -dc 'a-zA-Z0-9._-' | cut -c1-32)
+[ -z "$USERNAME" ] && USERNAME="user"
+
+NSS_WRAPPER_LIB=$(find "$SNAP/usr/lib" -name "libnss_wrapper.so*" \
+    ! -name "*.a" ! -name "*.la" 2>/dev/null | sort -V | tail -1)
+
+if [ -n "$NSS_WRAPPER_LIB" ]; then
+    TMPDIR_NSS=$(mktemp -d /tmp/openshell-ssh-XXXXXX)
+    printf '%s:x:%s:%s:User:%s:/bin/sh\n' \
+        "$USERNAME" "$UID_VAL" "$GID_VAL" "${SNAP_REAL_HOME:-/tmp}" \
+        > "$TMPDIR_NSS/passwd"
+    printf '%s:x:%s:\n' "$USERNAME" "$GID_VAL" > "$TMPDIR_NSS/group"
+
+    export NSS_WRAPPER_PASSWD="$TMPDIR_NSS/passwd"
+    export NSS_WRAPPER_GROUP="$TMPDIR_NSS/group"
+    export LD_PRELOAD="$NSS_WRAPPER_LIB"
+fi
+
+exec "$SNAP/usr/bin/ssh" "$@"

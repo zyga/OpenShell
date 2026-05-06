@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 name: openshell-vm-rootfs
 base: ubuntu@24.04
 adopt-info: workspace
@@ -39,7 +42,9 @@ parts:
     override-pull: |
       craftctl default
       # Set version to git describe or short commit hash
-      craftctl set version=$(git branch --show-current | tr '/' '-')-g$(git rev-parse --short HEAD)
+      branch=$(git branch --show-current | tr '/' '-' | cut -c1-23)
+      hash=$(git rev-parse --short HEAD)
+      craftctl set version="${branch}-g${hash}"
 
   scripts:
     plugin: nil

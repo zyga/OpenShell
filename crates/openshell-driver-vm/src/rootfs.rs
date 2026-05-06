@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashMap;
+use std::ffi::OsString;
 use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Cursor};
@@ -44,7 +46,31 @@ pub fn extract_rootfs_archive_to(archive_path: &Path, dest: &Path) -> Result<(),
         .map_err(|e| format!("extract rootfs tarball into {}: {e}", dest.display()))
 }
 
+/// Create a tar archive from a directory tree, with no ownership overrides.
 pub fn create_rootfs_archive_from_dir(source: &Path, archive_path: &Path) -> Result<(), String> {
+    create_rootfs_archive_impl(source, archive_path, &HashMap::new())
+}
+
+/// Create a tar archive from a sandbox rootfs directory, overriding the
+/// ownership of the `sandbox` home directory to match the sandbox user in
+/// `etc/passwd`. This avoids calling `chown` on the filesystem (which fails
+/// under AppArmor strict confinement) by writing the correct uid/gid directly
+/// into the tar header.
+pub fn create_sandbox_rootfs_archive_from_dir(
+    source: &Path,
+    archive_path: &Path,
+) -> Result<(), String> {
+    let (uid, gid) = sandbox_uid_gid_from_rootfs(source, 10001, 10001);
+    let mut overrides = HashMap::new();
+    overrides.insert(OsString::from("sandbox"), (uid, gid));
+    create_rootfs_archive_impl(source, archive_path, &overrides)
+}
+
+fn create_rootfs_archive_impl(
+    source: &Path,
+    archive_path: &Path,
+    ownership_overrides: &HashMap<OsString, (u32, u32)>,
+) -> Result<(), String> {
     if let Some(parent) = archive_path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("create {}: {e}", parent.display()))?;
     }
@@ -53,13 +79,14 @@ pub fn create_rootfs_archive_from_dir(source: &Path, archive_path: &Path) -> Res
         .map_err(|e| format!("create {}: {e}", archive_path.display()))?;
     let writer = BufWriter::new(file);
     let mut builder = tar::Builder::new(writer);
-    append_rootfs_tree_to_archive(&mut builder, source, Path::new("")).map_err(|e| {
-        format!(
-            "archive {} into {}: {e}",
-            source.display(),
-            archive_path.display()
-        )
-    })?;
+    append_rootfs_tree_to_archive(&mut builder, source, Path::new(""), ownership_overrides)
+        .map_err(|e| {
+            format!(
+                "archive {} into {}: {e}",
+                source.display(),
+                archive_path.display()
+            )
+        })?;
     builder
         .finish()
         .map_err(|e| format!("finalize {}: {e}", archive_path.display()))
@@ -69,6 +96,7 @@ fn append_rootfs_tree_to_archive(
     builder: &mut tar::Builder<BufWriter<File>>,
     source: &Path,
     archive_prefix: &Path,
+    ownership_overrides: &HashMap<OsString, (u32, u32)>,
 ) -> Result<(), String> {
     let mut entries = fs::read_dir(source)
         .map_err(|e| format!("read {}: {e}", source.display()))?
@@ -80,19 +108,38 @@ fn append_rootfs_tree_to_archive(
         let entry_name = entry.file_name();
         let source_path = entry.path();
         let archive_path = if archive_prefix.as_os_str().is_empty() {
-            entry_name.into()
+            entry_name.clone().into()
         } else {
-            archive_prefix.join(entry_name)
+            archive_prefix.join(&entry_name)
         };
         let metadata = fs::symlink_metadata(&source_path)
             .map_err(|e| format!("stat {}: {e}", source_path.display()))?;
         let file_type = metadata.file_type();
 
         if file_type.is_dir() {
-            builder
-                .append_dir(&archive_path, &source_path)
-                .map_err(|e| format!("append dir {}: {e}", source_path.display()))?;
-            append_rootfs_tree_to_archive(builder, &source_path, &archive_path)?;
+            if let Some(&(uid, gid)) = ownership_overrides.get(&entry_name) {
+                // Write a directory header with overridden uid/gid. This avoids
+                // calling chown on the host filesystem, which fails under
+                // AppArmor strict confinement even as root.
+                let mut header = tar::Header::new_gnu();
+                header.set_metadata(&metadata);
+                header.set_uid(uid as u64);
+                header.set_gid(gid as u64);
+                header.set_cksum();
+                builder
+                    .append_data(&mut header, &archive_path, std::io::empty())
+                    .map_err(|e| format!("append dir {}: {e}", source_path.display()))?;
+            } else {
+                builder
+                    .append_dir(&archive_path, &source_path)
+                    .map_err(|e| format!("append dir {}: {e}", source_path.display()))?;
+            }
+            append_rootfs_tree_to_archive(
+                builder,
+                &source_path,
+                &archive_path,
+                ownership_overrides,
+            )?;
             continue;
         }
 
@@ -176,6 +223,28 @@ fn prepare_sandbox_rootfs(rootfs: &Path) -> Result<(), String> {
     ensure_sandbox_guest_user(rootfs)?;
 
     Ok(())
+}
+
+/// Read the uid and gid for the "sandbox" user from the rootfs `/etc/passwd`.
+///
+/// Falls back to the fallback values when the entry is missing or malformed.
+fn sandbox_uid_gid_from_rootfs(rootfs: &Path, fallback_uid: u32, fallback_gid: u32) -> (u32, u32) {
+    let passwd_path = rootfs.join("etc/passwd");
+    let Ok(contents) = fs::read_to_string(&passwd_path) else {
+        return (fallback_uid, fallback_gid);
+    };
+    for line in contents.lines() {
+        if !line.starts_with("sandbox:") {
+            continue;
+        }
+        let parts: Vec<&str> = line.splitn(7, ':').collect();
+        if let (Some(uid_str), Some(gid_str)) = (parts.get(2), parts.get(3)) {
+            if let (Ok(uid), Ok(gid)) = (uid_str.parse::<u32>(), gid_str.parse::<u32>()) {
+                return (uid, gid);
+            }
+        }
+    }
+    (fallback_uid, fallback_gid)
 }
 
 pub fn validate_sandbox_rootfs(rootfs: &Path) -> Result<(), String> {

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 name: openshell
 title: OpenShell
 base: core24
@@ -71,6 +74,7 @@ parts:
       - skopeo
       - openssh-client
       - curl
+      - libnss-wrapper
     rust-features: []
     rust-path: ["crates/openshell-cli", "crates/openshell-server", "crates/openshell-driver-vm"]
     override-pull: |
@@ -112,8 +116,8 @@ parts:
         exit 1
       fi
 
-      OPENSHELL_VM_RUNTIME_COMPRESSED_DIR="$CRAFT_STAGE/vm-runtime" \
-        ./tasks/scripts/vm/build-supervisor-bundle.sh --arch "$VM_GUEST_ARCH"
+      export OPENSHELL_VM_RUNTIME_COMPRESSED_DIR="$CRAFT_STAGE/vm-runtime"
+      ./tasks/scripts/vm/build-supervisor-bundle.sh --arch "$VM_GUEST_ARCH"
 
       craftctl default
 

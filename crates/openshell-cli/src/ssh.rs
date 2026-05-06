@@ -150,7 +150,19 @@ fn ssh_base_command(proxy_command: &str) -> Command {
     let ssh_log_level =
         std::env::var("OPENSHELL_SSH_LOG_LEVEL").unwrap_or_else(|_| "ERROR".to_string());
 
-    let mut command = Command::new("ssh");
+    // In strict snap confinement, getpwuid() fails for domain users (e.g.
+    // SSSD / Active Directory) because the NSS socket is not accessible.
+    // OpenSSH calls getpwuid(getuid()) early and exits if it returns NULL,
+    // even when USER/LOGNAME are set.  The snap bundles an `openshell-ssh`
+    // wrapper that uses libnss_wrapper to intercept getpwuid and return a
+    // synthetic passwd entry so that SSH can start successfully.
+    let ssh_bin = if std::env::var("SNAP").is_ok() {
+        "openshell-ssh"
+    } else {
+        "ssh"
+    };
+
+    let mut command = Command::new(ssh_bin);
     command
         .arg("-o")
         .arg(format!("ProxyCommand={proxy_command}"))

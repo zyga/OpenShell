@@ -286,6 +286,24 @@ mount -t tmpfs tmpfs /dev/shm 2>/dev/null &
 mount -t cgroup2 cgroup2 /sys/fs/cgroup 2>/dev/null &
 wait
 
+# Ensure the sandbox user's home directory is writable. The virtiofs rootfs is
+# served from the host where AppArmor blocks chown, so /sandbox arrives
+# root-owned from the image. We remount it as a local tmpfs (which the VM
+# kernel owns outright) so chown succeeds and the sandbox user can write.
+if [ -d /sandbox ] && [ "$(stat -c %u /sandbox 2>/dev/null || echo 0)" = "0" ]; then
+    SANDBOX_UID=$(awk -F: '$1=="sandbox"{print $3; exit}' /etc/passwd 2>/dev/null || echo 1000)
+    SANDBOX_GID=$(awk -F: '$1=="sandbox"{print $4; exit}' /etc/passwd 2>/dev/null || echo 1000)
+    # Stash existing contents (dot-files from the image: .bashrc, .venv, etc.)
+    cp -a /sandbox /tmp/sandbox-home-staging 2>/dev/null || true
+    mount -t tmpfs -o mode=0750 tmpfs /sandbox
+    # Restore image contents and fix ownership so sandbox user can read/write
+    if [ -d /tmp/sandbox-home-staging ]; then
+        cp -a /tmp/sandbox-home-staging/. /sandbox/ 2>/dev/null || true
+        rm -rf /tmp/sandbox-home-staging
+    fi
+    chown -R "${SANDBOX_UID}:${SANDBOX_GID}" /sandbox
+fi
+
 hostname openshell-sandbox-vm 2>/dev/null || true
 ip link set lo up 2>/dev/null || true
 

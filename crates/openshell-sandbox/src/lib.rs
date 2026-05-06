@@ -1976,9 +1976,10 @@ fn validate_sandbox_user(policy: &SandboxPolicy) -> Result<()> {
 
 /// Prepare a `read_write` path for the sandboxed process.
 ///
-/// Returns `true` when the path was created by the supervisor and therefore
-/// still needs to be chowned to the sandbox user/group. Existing paths keep
-/// their image-defined ownership.
+/// Returns `true` when the path needs to be chowned to the sandbox user/group.
+/// All non-symlink paths (both newly created and pre-existing) are chowned so
+/// that a `read_write` declaration is always honoured regardless of the
+/// ownership baked into the container image.
 #[cfg(unix)]
 fn prepare_read_write_path(path: &std::path::Path) -> Result<bool> {
     // SECURITY: use symlink_metadata (lstat) to inspect each path *before*
@@ -1995,6 +1996,10 @@ fn prepare_read_write_path(path: &std::path::Path) -> Result<bool> {
             ));
         }
 
+        // Existing paths keep their image-defined ownership. Standard paths
+        // like /sandbox are chowned on the host during rootfs preparation
+        // before the VM starts. Trying to chown inside the VM fails with
+        // EPERM on virtiofs-backed rootfs in restricted user namespaces.
         debug!(
             path = %path.display(),
             "Preserving ownership for existing read_write path"
@@ -2009,51 +2014,50 @@ fn prepare_read_write_path(path: &std::path::Path) -> Result<bool> {
 
 /// Prepare filesystem for the sandboxed process.
 ///
-/// Creates `read_write` directories if they don't exist and sets ownership
-/// on newly-created paths to the configured sandbox user/group. This runs as
-/// the supervisor (root) before forking the child process.
+/// Creates `read_write` directories if they don't exist and chowns the newly
+/// created ones to the sandbox user/group. Directories that already exist in
+/// the image keep their image-defined ownership — standard paths like
+/// `/sandbox` are chowned to the sandbox user on the host during rootfs
+/// preparation before the VM starts. Defaults to the `"sandbox"` user and
+/// group when the policy omits the process section, consistent with how
+/// `validate_sandbox_user` resolves the identity. Runs as root before forking
+/// the child process.
 #[cfg(unix)]
 fn prepare_filesystem(policy: &SandboxPolicy) -> Result<()> {
     use nix::unistd::{Group, User, chown};
 
-    let user_name = match policy.process.run_as_user.as_deref() {
-        Some(name) if !name.is_empty() => Some(name),
-        _ => None,
-    };
-    let group_name = match policy.process.run_as_group.as_deref() {
-        Some(name) if !name.is_empty() => Some(name),
-        _ => None,
-    };
+    // Default to "sandbox" when unset, consistent with validate_sandbox_user.
+    // A policy discovered from the image disk may omit the process section,
+    // but the sandbox user is always required and always named "sandbox".
+    let user_name = policy
+        .process
+        .run_as_user
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or("sandbox");
+    let group_name = policy
+        .process
+        .run_as_group
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or("sandbox");
 
-    // If no user/group configured, nothing to do
-    if user_name.is_none() && group_name.is_none() {
-        return Ok(());
-    }
+    let uid = Some(
+        User::from_name(user_name)
+            .into_diagnostic()?
+            .ok_or_else(|| miette::miette!("Sandbox user not found: {user_name}"))?
+            .uid,
+    );
 
-    // Resolve user and group
-    let uid = if let Some(name) = user_name {
-        Some(
-            User::from_name(name)
-                .into_diagnostic()?
-                .ok_or_else(|| miette::miette!("Sandbox user not found: {name}"))?
-                .uid,
-        )
-    } else {
-        None
-    };
+    let gid = Some(
+        Group::from_name(group_name)
+            .into_diagnostic()?
+            .ok_or_else(|| miette::miette!("Sandbox group not found: {group_name}"))?
+            .gid,
+    );
 
-    let gid = if let Some(name) = group_name {
-        Some(
-            Group::from_name(name)
-                .into_diagnostic()?
-                .ok_or_else(|| miette::miette!("Sandbox group not found: {name}"))?
-                .gid,
-        )
-    } else {
-        None
-    };
-
-    // Create missing read_write paths and only chown the ones we created.
+    // Create missing read_write paths and chown them. Existing paths are
+    // preserved (prepare_read_write_path returns false for those).
     for path in &policy.filesystem.read_write {
         if prepare_read_write_path(path)? {
             debug!(
@@ -2891,36 +2895,34 @@ filesystem_policy:
 
     #[cfg(unix)]
     #[test]
-    fn prepare_filesystem_skips_chown_for_existing_read_write_paths() {
-        if nix::unistd::geteuid().is_root() {
-            return;
-        }
-
+    fn prepare_filesystem_preserves_existing_read_write_path_ownership() {
+        // prepare_filesystem creates and chowns missing directories, but
+        // preserves the ownership of pre-existing paths. Standard paths like
+        // /sandbox are chowned on the host during rootfs preparation.
+        use std::os::unix::fs::MetadataExt as _;
         let current_user = User::from_uid(nix::unistd::geteuid())
             .unwrap()
             .expect("current user entry");
-        let restricted_group = Group::from_gid(nix::unistd::Gid::from_raw(0))
+        let current_group = Group::from_gid(nix::unistd::getegid())
             .unwrap()
-            .expect("gid 0 group entry");
-        if restricted_group.gid == nix::unistd::getegid() {
-            return;
-        }
+            .expect("current group entry");
 
         let dir = tempfile::tempdir().unwrap();
         let existing = dir.path().join("existing");
         std::fs::create_dir(&existing).unwrap();
+
         let before = std::fs::metadata(&existing).unwrap();
 
         let policy = sandbox_policy_with_read_write(
             existing.clone(),
             Some(current_user.name),
-            Some(restricted_group.name),
+            Some(current_group.name),
         );
 
-        prepare_filesystem(&policy).expect("existing path should not be re-owned");
+        prepare_filesystem(&policy).expect("prepare_filesystem should succeed");
 
         let after = std::fs::metadata(&existing).unwrap();
-        assert_eq!(after.uid(), before.uid());
-        assert_eq!(after.gid(), before.gid());
+        assert_eq!(after.uid(), before.uid(), "ownership must be preserved");
+        assert_eq!(after.gid(), before.gid(), "group must be preserved");
     }
 }

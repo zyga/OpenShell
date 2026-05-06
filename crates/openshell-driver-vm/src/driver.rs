@@ -5,8 +5,8 @@ use crate::gpu::{
     GpuInventory, SubnetAllocator, allocate_vsock_cid, mac_from_sandbox_id, tap_device_name,
 };
 use crate::rootfs::{
-    create_rootfs_archive_from_dir, extract_rootfs_archive_to,
-    prepare_sandbox_rootfs_from_image_root, sandbox_guest_init_path,
+    create_rootfs_archive_from_dir, create_sandbox_rootfs_archive_from_dir,
+    extract_rootfs_archive_to, prepare_sandbox_rootfs_from_image_root, sandbox_guest_init_path,
 };
 use bollard::Docker;
 use bollard::errors::Error as BollardError;
@@ -1155,7 +1155,7 @@ impl VmDriver {
             .map_err(|err| {
                 format!("vm sandbox image '{image_ref_owned}' is not base-compatible: {err}")
             })?;
-            create_rootfs_archive_from_dir(&prepared_rootfs_for_build, &prepared_archive_for_build)
+            create_sandbox_rootfs_archive_from_dir(&prepared_rootfs_for_build, &prepared_archive_for_build)
         })
         .await
         .map_err(|err| Status::internal(format!("image rootfs preparation panicked: {err}")))?;
@@ -1655,7 +1655,7 @@ fn prepare_exported_rootfs_archive(
     extract_rootfs_archive_to(exported_rootfs, prepared_rootfs)?;
     prepare_sandbox_rootfs_from_image_root(prepared_rootfs, image_identity)
         .map_err(|err| format!("vm sandbox image '{image_ref}' is not base-compatible: {err}"))?;
-    create_rootfs_archive_from_dir(prepared_rootfs, prepared_archive)
+    create_sandbox_rootfs_archive_from_dir(prepared_rootfs, prepared_archive)
 }
 
 fn registry_client() -> OciClient {

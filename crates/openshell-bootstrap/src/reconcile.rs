@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::constants::{CLIENT_TLS_SECRET_NAME, SERVER_TLS_SECRET_NAME};
 use crate::pki::PkiBundle;
 use k8s_openapi::api::apps::v1::StatefulSet;
