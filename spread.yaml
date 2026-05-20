@@ -29,6 +29,9 @@ backends:
             - fedora-cloud-44:
                   username: fedora
                   password: fedora
+            - centos-cloud-10:
+                  username: centos
+                  password: centos
 
 exclude:
     - ".cache/*"
