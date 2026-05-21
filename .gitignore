@@ -222,5 +222,8 @@ rfc.md
 # Spread reuse files
 .spread-reuse.*.yaml
 
+# Base container to be imported into spread for testing.
+base-container.tar
+
 # Markdown/mermaid lint tooling deps
 scripts/lint-mermaid/node_modules/

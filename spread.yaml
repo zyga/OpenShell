@@ -40,9 +40,25 @@ exclude:
 
 path: /root/openshell
 
+
+environment:
+  # The default container is large and instead of putting it in the pre-built
+  # qemu image, we are getting it externally.  This approach is more friendly
+  # to storing the file in GitHub actions cache and sharing it across test jobs
+  # without abusing the cache size limit.
+  CONTAINER_FILE: "$(HOST: if [ ! -e base-container.tar ]; then docker image pull ghcr.io/nvidia/openshell-community/sandboxes/base:latest && docker image save -o base-container.tar ghcr.io/nvidia/openshell-community/sandboxes/base:latest; fi >&2 && echo base-container.tar)"
+  SNAP_FILE: "$(HOST: ls ./openshell_*.snap | sort -r | head -n 1 || exit 1)"
+
 prepare: |
+    # Wait for docker socket to show up.
+    while [ ! -S /run/docker.sock ]; do sleep 1; done
+    # Load the container we receive from the host.
+    echo "$CONTAINER_FILE"
+    docker image load < "$CONTAINER_FILE"
+    docker image ls | MATCH ghcr.io/nvidia/openshell-community/sandboxes/base:latest
+
     # Install the openshell snap that was copied into the test environment.
-    snap install $(ls ./openshell_*.snap | sort -r | head -n 1) --dangerous
+    snap install --dangerous "$SNAP_FILE"
 
     # Connect snap interfaces. When installing from the store this
     # is auto-connected by the snap declaration assertion, but locally
