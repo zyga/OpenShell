@@ -248,7 +248,7 @@ jobs:
 
   spread-amd64:
     name: spread (amd64) - ${{ matrix.spread-system }}
-    if: ${{ !inputs.skip-spread-tests && needs.discover-spread-systems.outputs.spread-systems != '"__skip__"' }}
+    if: ${{ !inputs.skip-spread-tests && !contains(needs.discover-spread-systems.outputs.spread-systems, '__skip__') }}
     needs: [discover-spread-systems, snapcraft-pack-amd64]
     strategy:
       matrix:
@@ -282,7 +282,7 @@ jobs:
     name: snapcraft upload
     # Upload built snaps only after smoke testing the amd64 build first.
     # When spread tests are skipped, proceed directly after packing is complete.
-    if: ${{ always() && (inputs.skip-spread-tests || needs.spread-amd64.result == 'success' || needs.spread-amd64.result == 'skipped') }}
+    if: ${{ always() && (inputs.skip-spread-tests || needs.spread-amd64.result == 'success' || needs.spread-amd64.result == 'skipped' || needs.spread-amd64.result == 'cancelled') }}
     needs: [snapcraft-pack-amd64, snapcraft-pack-arm64, spread-amd64]
     uses: ./.github/workflows/snapcraft-upload.yml
     with:
