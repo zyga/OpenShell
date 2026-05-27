@@ -38,12 +38,12 @@ jobs:
         include:
           - arch: x86_64
             artifact_arch: amd64
-            runner: linux-amd64-cpu8
+            runner: ubuntu-latest
             cli_target: x86_64-unknown-linux-musl
             gnu_target: x86_64-unknown-linux-gnu
           - arch: aarch64
             artifact_arch: arm64
-            runner: linux-arm64-cpu8
+            runner: ubuntu-24.04-arm
             cli_target: aarch64-unknown-linux-musl
             gnu_target: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}

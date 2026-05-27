@@ -30,7 +30,7 @@ jobs:
   # ---------------------------------------------------------------------------
   compute-versions:
     name: Compute Versions
-    runs-on: linux-amd64-cpu8
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     container:
       image: ghcr.io/nvidia/openshell/ci:latest
@@ -95,12 +95,12 @@ jobs:
     with:
       image-tag: ${{ needs.compute-versions.outputs.source_sha }}
       checkout-ref: ${{ inputs.tag || github.ref }}
-      runner: linux-arm64-cpu8
+      runner: ubuntu-24.04-arm
 
   tag-ghcr-release:
     name: Tag GHCR Images for Release
     needs: [compute-versions, build-gateway, build-supervisor, e2e]
-    runs-on: linux-amd64-cpu8
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Log in to GHCR
@@ -131,12 +131,12 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: linux-amd64-cpu8
+            runner: ubuntu-latest
             artifact: linux-amd64
             task: python:build:linux:amd64
             output_path: target/wheels/linux-amd64/*.whl
           - arch: arm64
-            runner: linux-arm64-cpu8
+            runner: ubuntu-24.04-arm
             artifact: linux-arm64
             task: python:build:linux:arm64
             output_path: target/wheels/linux-arm64/*.whl
@@ -186,7 +186,7 @@ jobs:
   build-python-wheel-macos:
     name: Build Python Wheel (macOS)
     needs: [compute-versions]
-    runs-on: linux-amd64-cpu8
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     container:
       image: ghcr.io/nvidia/openshell/ci:latest
@@ -243,11 +243,11 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: linux-amd64-cpu8
+            runner: ubuntu-latest
             target: x86_64-unknown-linux-musl
             zig_target: x86_64-linux-musl
           - arch: arm64
-            runner: linux-arm64-cpu8
+            runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
             zig_target: aarch64-linux-musl
     runs-on: ${{ matrix.runner }}
@@ -351,7 +351,7 @@ jobs:
   build-cli-macos:
     name: Build CLI (macOS)
     needs: [compute-versions]
-    runs-on: linux-amd64-cpu8
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
       image: ghcr.io/nvidia/openshell/ci:latest
@@ -418,11 +418,11 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: linux-amd64-cpu8
+            runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             zig_target: x86_64-unknown-linux-gnu.2.31
           - arch: arm64
-            runner: linux-arm64-cpu8
+            runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             zig_target: aarch64-unknown-linux-gnu.2.31
     runs-on: ${{ matrix.runner }}
@@ -512,10 +512,10 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: linux-amd64-cpu8
+            runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
           - arch: arm64
-            runner: linux-arm64-cpu8
+            runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
@@ -592,7 +592,7 @@ jobs:
   build-gateway-binary-macos:
     name: Build Gateway Binary (macOS)
     needs: [compute-versions]
-    runs-on: linux-amd64-cpu8
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
       image: ghcr.io/nvidia/openshell/ci:latest
@@ -714,42 +714,42 @@ jobs:
       matrix:
         include:
           - name: ubuntu-20.04-binaries
-            runner: linux-amd64-cpu8
+            runner: ubuntu-latest
             image: ubuntu:20.04
             kind: binary
             artifact_arch: amd64
             rpm_arch: x86_64
             target: x86_64-unknown-linux-gnu
           - name: ubuntu-20.04-binaries-arm64
-            runner: linux-arm64-cpu8
+            runner: ubuntu-24.04-arm
             image: ubuntu:20.04
             kind: binary
             artifact_arch: arm64
             rpm_arch: aarch64
             target: aarch64-unknown-linux-gnu
           - name: ubuntu-22.04-deb
-            runner: linux-amd64-cpu8
+            runner: ubuntu-latest
             image: ubuntu:22.04
             kind: deb
             artifact_arch: amd64
             rpm_arch: x86_64
             target: x86_64-unknown-linux-gnu
           - name: ubuntu-22.04-deb-arm64
-            runner: linux-arm64-cpu8
+            runner: ubuntu-24.04-arm
             image: ubuntu:22.04
             kind: deb
             artifact_arch: arm64
             rpm_arch: aarch64
             target: aarch64-unknown-linux-gnu
           - name: fedora-rpm
-            runner: linux-amd64-cpu8
+            runner: ubuntu-latest
             image: fedora:latest
             kind: rpm
             artifact_arch: amd64
             rpm_arch: x86_64
             target: x86_64-unknown-linux-gnu
           - name: fedora-rpm-aarch64
-            runner: linux-arm64-cpu8
+            runner: ubuntu-24.04-arm
             image: fedora:latest
             kind: rpm
             artifact_arch: arm64
@@ -819,7 +819,7 @@ jobs:
   release:
     name: Release
     needs: [compute-versions, build-cli-linux, build-cli-macos, build-gateway-binary-linux, build-gateway-binary-macos, build-supervisor-binary-linux, build-python-wheels-linux, build-python-wheel-macos, tag-ghcr-release, build-driver-vm-linux, build-driver-vm-macos, build-deb, build-rpm, build-snap, smoke-linux-release-artifacts]
-    runs-on: linux-amd64-cpu8
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write

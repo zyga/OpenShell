@@ -38,7 +38,7 @@ jobs:
     name: mise Lockfile
     needs: pr_metadata
     if: needs.pr_metadata.outputs.should_run == 'true'
-    runs-on: linux-amd64-cpu8
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/nvidia/openshell/ci:latest
       credentials:
@@ -62,7 +62,7 @@ jobs:
     name: License Headers
     needs: pr_metadata
     if: needs.pr_metadata.outputs.should_run == 'true'
-    runs-on: linux-amd64-cpu8
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/nvidia/openshell/ci:latest
       credentials:
@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [linux-amd64-cpu8, linux-arm64-cpu8]
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
     env:
       SCCACHE_GHA_ENABLED: "true"
@@ -141,7 +141,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [linux-amd64-cpu8, linux-arm64-cpu8]
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
     container:
       image: ghcr.io/nvidia/openshell/ci:latest
@@ -167,7 +167,7 @@ jobs:
     name: Markdown
     needs: pr_metadata
     if: needs.pr_metadata.outputs.should_run == 'true'
-    runs-on: linux-amd64-cpu8
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/nvidia/openshell/ci:latest
       credentials:

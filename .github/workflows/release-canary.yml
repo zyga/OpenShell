@@ -55,7 +55,7 @@ jobs:
   fedora:
     name: Fedora RPM
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
-    runs-on: linux-amd64-cpu8
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     container:
       image: fedora:latest

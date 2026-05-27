@@ -85,7 +85,7 @@ jobs:
     uses: ./.github/workflows/e2e-test.yml
     with:
       image-tag: ${{ github.sha }}
-      runner: linux-arm64-cpu8
+      runner: ubuntu-24.04-arm
 
   gpu-e2e:
     needs: [pr_metadata, build-supervisor]
