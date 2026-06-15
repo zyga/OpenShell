@@ -78,17 +78,18 @@ apps:
   gateway:
     command: bin/openshell-gateway-wrapper
     daemon: simple
+    daemon-scope: user
     # refresh-mode: endure prevents snapd from restarting the gateway daemon
     # during snap refreshes, which would kill active sandbox sessions.
     # Operators must manually restart the service after a refresh if needed.
     refresh-mode: endure
     # The wrapper sets OPENSHELL_DISABLE_TLS=true and OPENSHELL_DB_URL to
-    # use $SNAP_COMMON/gateway.db. If $SNAP_COMMON/gateway.toml exists it is
+    # use $SNAP_USER_COMMON/gateway.db. If $SNAP_USER_COMMON/gateway.toml exists it is
     # passed to the gateway as --config, allowing operators to override
     # settings without rebuilding the snap.
     environment:
-      XDG_DATA_HOME: "$SNAP_COMMON"
-      XDG_RUNTIME_DIR: "$SNAP_COMMON"
+      XDG_DATA_HOME: "$SNAP_USER_COMMON"
+      XDG_RUNTIME_DIR: "$SNAP_USER_COMMON"
     plugs:
       - docker
       # Docker snap is required because the snap uses the docker:docker-daemon

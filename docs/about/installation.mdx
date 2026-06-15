@@ -85,8 +85,8 @@ sudo snap install openshell --classic
 
 The snap defines two apps: the `openshell` CLI and the `openshell.gateway`
 systemd service. The gateway listens on `https://127.0.0.1:17670` and
-stores its database at `$SNAP_COMMON/gateway.db` (typically
-`/var/snap/openshell/common/gateway.db`). Create `$SNAP_COMMON/gateway.toml`
+stores its database at `$SNAP_USER_COMMON/gateway.db` (typically
+`~/snap/openshell/common/gateway.db`). Create `$SNAP_USER_COMMON/gateway.toml`
 when you need to override gateway settings.
 
 ### Snap store installs
@@ -125,13 +125,14 @@ system-installed Docker.
 
 ### Gateway service
 
-The gateway runs as a snap daemon with `refresh-mode: endure`, meaning snapd
-will not restart it during snap refreshes. This prevents the gateway from
-killing active sandbox sessions mid-refresh. Restart the service manually after
-a snap refresh when you need the updated binary:
+The gateway runs as a user-scoped service, meaning it starts when the user
+logs in and each user gets their own independent gateway instance. It runs
+with `refresh-mode: endure`, meaning snapd will not restart it during snap
+refreshes. Restart the service manually after a snap refresh when you need
+the updated binary:
 
 ```shell
-sudo systemctl restart snap.openshell.gateway
+sudo snap restart openshell.gateway
 ```
 
 ## Kubernetes
